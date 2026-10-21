@@ -25,8 +25,9 @@ class CanonicalLabel:
                  derived: bool = False):
         self.label, self.section, self.is_total, self.description = label, section, is_total, description
         self.derived = derived
-        # A catch-all bucket. The spec says which one it is; the name is only a
-        # fallback for a spec that does not say.
+        # A catch-all bucket, which is where a line with no close match goes.
+        # The spec says which labels these are; a label whose name starts with
+        # "other" is taken as one when the spec does not say.
         self.is_other = (not is_total and label.rsplit(".", 1)[-1].startswith("other")
                          if is_other is None else is_other)
 
@@ -47,7 +48,9 @@ def _in_section(label: CanonicalLabel, section: str) -> bool:
 def build_prompt(rows: list, labels: list[CanonicalLabel], years: list[int],
                  feedback: list[str] | None = None) -> str:
     """Compact prompt: targets and indexed printed lines with values as context."""
-    targets = [f"- {c.label} [{c.section}]{' TOTAL' if c.is_total else ''}"
+    targets = [f"- {c.label} [{c.section}]"
+               + (" TOTAL" if c.is_total else "")
+               + (" CATCH-ALL" if c.is_other else "")
                + (f": {c.description}" if c.description else "")
                for c in labels]
     shown = years[-2:]
@@ -65,7 +68,7 @@ def build_prompt(rows: list, labels: list[CanonicalLabel], years: list[int],
         f"Printed lines (index. label (values for {', '.join(map(str, shown))})):", *printed,
         "Rules:",
         "- a line whose label says Total or NET is a subtotal: assign it to the matching TOTAL label;",
-        "- a line with no close match goes to the 'other' label of its own section if there is one;",
+        "- a line with no close match goes to the CATCH-ALL label of its own section;",
         "- otherwise leave the line unassigned;",
         "- a canonical label may take several indices (they are summed);",
         "- do not output any numbers, only indices.",

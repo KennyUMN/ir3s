@@ -167,12 +167,6 @@ class ModelSpec(BaseModel):
                     return item
         return None
 
-    def header_row(self, kind: StatementKind) -> int:
-        return self.header_rows.get(kind, 2)
-
-    def check_row(self, name: str) -> int | None:
-        return self.check_rows.get(name)
-
 def load_spec(source: str | Path) -> ModelSpec:
     """Parse a spec from a YAML file path, or from a YAML string."""
     if isinstance(source, Path) or ("\n" not in source and Path(source).is_file()):

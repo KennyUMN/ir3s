@@ -73,42 +73,52 @@ statements:
   balance_sheet:
     # --- current assets ---------------------------------------------------
     - label: assets.cash_and_equivalents
+      is_other: false
       section: assets.current
       template_row: 8
       description: Kas dan setara kas / Cash and cash equivalents
     - label: assets.investments_current
+      is_other: false
       section: assets.current
       template_row: 15
       share: true
       description: Investasi / Investments
     - label: assets.other_receivables
+      is_other: false
       section: assets.current
       template_row: 10
       description: Piutang lain-lain / Other receivables
     - label: assets.inventories
+      is_other: false
       section: assets.current
       template_row: 11
       description: Persediaan / Inventories, the current part
     - label: assets.advances
+      is_other: false
       section: assets.current
       template_row: 13
       share: true
       description: Uang muka / Advances paid
     - label: assets.prepaid_expenses
+      is_other: false
       section: assets.current
       template_row: 13
       share: true
       description: Biaya dibayar dimuka / Prepaid expenses
     - label: assets.prepaid_taxes
+      is_other: false
       section: assets.current
       template_row: 12
       description: Pajak dibayar dimuka / Prepaid taxes
     - label: assets.other_current
+      is_other: false
       section: assets.current
+      is_other: true
       template_row: 15
       share: true
       description: Aset lain-lain / Other current assets
     - label: assets.total_current
+      is_other: false
       section: assets.current
       template_row: 16
       is_total: true
@@ -116,86 +126,105 @@ statements:
       description: Jumlah Aset Lancar / Total current assets
     # --- non-current assets -----------------------------------------------
     - label: assets.joint_venture
+      is_other: false
       section: assets.non_current
       template_row: 25
       share: true
       description: Investasi dalam ventura bersama / Investment in a joint venture
     - label: assets.inventories_non_current
+      is_other: false
       section: assets.non_current
       template_row: 25
       share: true
       description: Persediaan / Inventories, the non-current part
     - label: assets.investment_properties
+      is_other: false
       section: assets.non_current
       template_row: 25
       share: true
       description: Properti investasi / Investment properties
     - label: assets.fixed_assets
+      is_other: false
       section: assets.non_current
       template_row: 22
       description: Aset tetap / Property, plant and equipment
     - label: assets.right_of_use
+      is_other: false
       section: assets.non_current
       template_row: 23
       description: Aset hak-guna / Right-of-use assets
     - label: assets.total_non_current
+      is_other: false
       section: assets.non_current
       template_row: 26
       is_total: true
       derived: true
       description: Jumlah Aset Tidak Lancar / Total non-current assets
     - label: assets.total
+      is_other: false
       section: assets
       template_row: 27
       is_total: true
       description: JUMLAH ASET / Total assets
     # --- current liabilities ----------------------------------------------
     - label: liabilities.short_term_debt
+      is_other: false
       section: liabilities.current
       template_row: 30
       description: Utang bank jangka pendek / Short-term bank loan
     - label: liabilities.payables
+      is_other: false
       section: liabilities.current
       template_row: 31
       description: Utang usaha / Trade accounts payable
     - label: liabilities.taxes_payable
+      is_other: false
       section: liabilities.current
       template_row: 33
       description: Utang pajak / Taxes payable
     - label: liabilities.accrued_expenses
+      is_other: false
       section: liabilities.current
       template_row: 34
       description: Beban akrual / Accrued expenses
     - label: liabilities.security_deposits
+      is_other: false
       section: liabilities.current
       template_row: 32
       share: true
       description: Setoran jaminan / Security deposits
     - label: liabilities.contract_liabilities
+      is_other: false
       section: liabilities.current
       template_row: 36
       share: true
       description: Liabilitas kontrak / Contract liabilities
     - label: liabilities.other_advances
+      is_other: false
       section: liabilities.current
       template_row: 36
       share: true
       description: Uang muka lain-lain diterima / Other advances received
     - label: liabilities.rental_advances
+      is_other: false
       section: liabilities.current
       template_row: 36
       share: true
       description: Sewa diterima dimuka / Rental advances
     - label: liabilities.current_lease_liabilities
+      is_other: false
       section: liabilities.current
       template_row: 41
       description: Liabilitas sewa yang jatuh tempo dalam waktu satu tahun
     - label: liabilities.other_payables
+      is_other: false
       section: liabilities.current
+      is_other: true
       template_row: 32
       share: true
       description: Utang lain-lain / Other payables
     - label: liabilities.total_current
+      is_other: false
       section: liabilities.current
       template_row: 42
       is_total: true
@@ -207,57 +236,69 @@ statements:
     # tax. The account goes to the catch-all rather than into a row that
     # means something else.
     - label: liabilities.contract_liabilities_non_current
+      is_other: false
       section: liabilities.current
       template_row: 32
       share: true
       description: Liabilitas kontrak - pihak ketiga / Contract liabilities, non-current
     - label: liabilities.long_term_employee_benefits
+      is_other: false
       section: liabilities.non_current
       template_row: 48
       description: Liabilitas imbalan kerja jangka panjang
     - label: liabilities.total_non_current
+      is_other: false
       section: liabilities.non_current
       template_row: 50
       is_total: true
       derived: true
       description: Jumlah Liabilitas Jangka Panjang / Total non-current liabilities
     - label: liabilities.total
+      is_other: false
       section: liabilities
       template_row: 51
       is_total: true
       description: JUMLAH LIABILITAS / Total liabilities
     # --- equity ------------------------------------------------------------
     - label: equity.share_capital
+      is_other: false
       section: equity.parent
       template_row: 53
       description: Modal ditempatkan dan disetor / Issued and paid-up capital
     - label: equity.paid_in_capital
+      is_other: false
       section: equity.parent
       template_row: 54
       description: Tambahan modal disetor / Additional paid-in capital
     - label: equity.retained_appropriated
+      is_other: false
       section: equity.parent
       template_row: 58
       description: Saldo laba - Ditetermined penggunaannya / Appropriated
     - label: equity.retained_unappropriated
+      is_other: false
       section: equity.parent
       template_row: 59
       description: Saldo laba - Belum ditentukan penggunaannya / Unappropriated
     - label: equity.parent_total
+      is_other: false
       section: equity.parent
       template_row: 60
       is_total: true
       description: Jumlah Ekuitas yang Dapat Diatribusikan / Total equity attributable
     - label: equity.non_controlling
+      is_other: false
       section: equity
       template_row: 61
       description: Kepentingan Nonpengendali / Non-controlling interests
     - label: equity.total
+      is_other: false
       section: equity
       template_row: 62
       is_total: true
       description: JUMLAH EKUITAS / Total equity
     - label: equity.grand_total
+      is_other: false
       section: equity
       template_row: 63
       is_total: true
@@ -265,59 +306,73 @@ statements:
 
   income_statement:
     - label: income.revenues
+      is_other: false
       section: income
       template_row: 69
       description: PENDAPATAN USAHA / Revenues
     - label: income.cost_of_revenues
+      is_other: false
       section: income
       template_row: 70
       description: BEBAN POKOK PENDAPATAN / Cost of revenues
     - label: income.gross_profit
+      is_other: false
       section: income
       template_row: 71
       description: LABA KOTOR / Gross profit
     - label: income.operating_expenses
+      is_other: false
       section: income
       template_row: 72
       description: Jumlah Beban Usaha / Total operating expenses
     - label: income.operating_profit
+      is_other: false
       section: income
       template_row: 73
       description: LABA USAHA / Operating profit
     - label: income.finance_income
+      is_other: false
       section: income
       template_row: 74
       description: Pendapatan bunga / Interest income
     - label: income.other_operating_income
+      is_other: false
       section: income
       template_row: 76
       description: Penghasilan Lain-lain - Bersih / Other income, net
     - label: income.finance_cost
+      is_other: false
       section: income
       template_row: 75
       description: Beban bunga dan keuangan lainnya
     - label: income.pretax
+      is_other: false
       section: income
       template_row: 78
       description: LABA SEBELUM PAJAK / Profit before tax
     - label: income.tax
+      is_other: false
       section: income
       template_row: 79
       description: BEBAN PAJAK KINI / Current tax expense
     - label: income.net_income
+      is_other: false
       section: income
       template_row: 80
       is_total: true
       description: LABA TAHUN BERJALAN / Profit for the year
     - label: income.attributable_to_parent
+      is_other: false
       section: income
       template_row: 83
       description: Kepentingan Owners of the Parent
     - label: income.non_controlling
+      is_other: false
       section: income
       template_row: 84
       description: Kepentingan non-pengendali / Non-controlling interests
     - label: income.total
+      is_other: false
       section: income
       template_row: 86
       is_total: true
@@ -326,38 +381,45 @@ statements:
 
   cash_flow:
     - label: cash.operating
+      is_other: false
       section: cash
       template_row: 112
       check_only: true
       description: Arus Kas Neto dari Aktivitas Operasi
     - label: cash.investing
+      is_other: false
       section: cash
       template_row: 121
       check_only: true
       description: Arus Kas Neto dari Aktivitas Investasi
     - label: cash.financing
+      is_other: false
       section: cash
       template_row: 141
       check_only: true
       description: Arus Kas Neto dari Aktivitas Pendanaan
     - label: cash.net_change
+      is_other: false
       section: cash
       template_row: 142
       check_only: true
       description: Kenaikan (Penurunan) Neto Kas / Net change in cash
     - label: cash.beginning
+      is_other: false
       section: cash
       template_row: 143
       share: true
       check_only: true
       description: Saldo Kas dan Setara Kas Pada Awal Tahun / Cash at the beginning
     - label: cash.fx_effect
+      is_other: false
       section: cash
       template_row: 143
       check_only: true
       share: true
       description: Pengaruh perubahan kurs mata uang asing
     - label: cash.ending
+      is_other: false
       section: cash
       template_row: 144
       check_only: true

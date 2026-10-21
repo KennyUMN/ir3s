@@ -39,10 +39,6 @@ class Slice:
     years: list[int] = field(default_factory=list)
     title: str = ""
 
-    @property
-    def page_count(self) -> int:
-        return len(self.pages)
-
 
 def _header_years(page: pymupdf.Page) -> list[int]:
     """Read the year header a statement page carries (`Notes | 2025 | 2024`).

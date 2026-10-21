@@ -54,104 +54,129 @@ statements:
     # A bank's cash and its placements with other banks are cash and cash
     # equivalents, so they share the template's one row for it.
     - label: assets.cash_and_equivalents
+      is_other: false
       section: assets
       template_row: 8
       share: true
       description: Kas / Cash
     - label: assets.central_bank_balances
+      is_other: false
       section: assets
       template_row: 8
       share: true
       description: Giro pada Bank Indonesia / Current accounts with Bank Indonesia
     - label: assets.other_bank_balances
+      is_other: false
       section: assets
       template_row: 8
       share: true
       description: Giro pada bank-bank lain / Current accounts with other banks
     - label: assets.securities
+      is_other: false
       section: assets
       template_row: 24
       share: true
       description: Efek-efek - bersih / Securities, net
     - label: assets.receivables
+      is_other: false
       section: assets
       template_row: 9
       description: Jumlah kredit yang diberikan - bersih / Total loans receivable, net
     - label: assets.fixed_assets
+      is_other: false
       section: assets
       template_row: 22
       description: Aset tetap - bersih / Fixed assets, net
     - label: assets.intangibles
+      is_other: false
       section: assets
       template_row: 24
       share: true
       description: Aset takberwujud - bersih / Intangible assets, net
     - label: assets.deferred_tax
+      is_other: false
       section: assets
       template_row: 21
       description: Aset pajak tangguhan / Deferred tax assets
     - label: assets.other_non_current
+      is_other: false
       section: assets
+      is_other: true
       template_row: 25
       description: Aset lain-lain / Other assets
     - label: assets.total
+      is_other: false
       section: assets
       template_row: 27
       is_total: true
       description: JUMLAH ASET / Total assets
     # --- liabilities -------------------------------------------------------
     - label: liabilities.due_immediately
+      is_other: false
       section: liabilities
       template_row: 35
       description: Liabilitas segera / Liabilities due immediately
     - label: liabilities.deposits_from_customers
+      is_other: false
       section: liabilities
       template_row: 36
       description: Jumlah simpanan nasabah / Total deposits from customers
     - label: liabilities.accrued_expenses
+      is_other: false
       section: liabilities
       template_row: 34
       description: Beban masih harus dibayar / Accrued expenses
     - label: liabilities.other_payables
+      is_other: false
       section: liabilities
+      is_other: true
       template_row: 32
       description: Liabilitas lain-lain / Other liabilities
     - label: liabilities.employee_benefits
+      is_other: false
       section: liabilities
       template_row: 38
       description: Liabilitas imbalan pascakerja / Post-employment benefits
     - label: liabilities.total
+      is_other: false
       section: liabilities
       template_row: 51
       is_total: true
       description: JUMLAH LIABILITAS / Total liabilities
     # --- equity -----------------------------------------------------------
     - label: equity.share_capital
+      is_other: false
       section: equity
       template_row: 53
       description: Modal saham / Share capital
     - label: equity.paid_in_capital
+      is_other: false
       section: equity
       template_row: 54
       description: Agio saham / Paid-in capital
     - label: equity.other_reserves
+      is_other: false
       section: equity
       template_row: 55
       description: Cadangan nilai wajar / Fair value reserve
     - label: equity.retained_appropriated
+      is_other: false
       section: equity
       template_row: 58
       description: Saldo laba - Telah ditentukan penggunaannya
     - label: equity.retained_unappropriated
+      is_other: false
       section: equity
       template_row: 59
       description: Saldo laba - Belum ditentukan penggunaannya / Unappropriated
     - label: equity.total
+      is_other: false
       section: equity
       template_row: 62
       is_total: true
       description: JUMLAH EKUITAS / Total equity
     - label: equity.grand_total
+      is_other: false
       section: equity
       template_row: 63
       is_total: true
@@ -164,35 +189,42 @@ statements:
     # they are not written, and the net interest income goes to row 76, the
     # template's "other operating income" row, which is a literal.
     - label: income.net_interest_income
+      is_other: false
       section: income
       template_row: 76
       share: true
       description: Pendapatan bunga bersih / Net interest income
     - label: income.other_operating_income
+      is_other: false
       section: income
       template_row: 76
       share: true
       description: Jumlah pendapatan operasional / Total operating income
     - label: income.operating_expenses
+      is_other: false
       section: income
       template_row: 72
       description: Jumlah beban operasional / Total operating expenses
     - label: income.pretax
+      is_other: false
       section: income
       template_row: 78
       is_total: true
       derived: true
       description: Laba atau Rugi Sebelum Pajak / Profit or loss before tax
     - label: income.tax
+      is_other: false
       section: income
       template_row: 79
       description: Benefits of income tax
     - label: income.net_income
+      is_other: false
       section: income
       template_row: 80
       is_total: true
       description: Laba atau Rugi Bersih / Net profit or loss
     - label: income.total
+      is_other: false
       section: income
       template_row: 86
       is_total: true
@@ -201,38 +233,45 @@ statements:
 
   cash_flow:
     - label: cash.operating
+      is_other: false
       section: cash
       template_row: 112
       check_only: true
       description: Arus Kas Neto dari Aktivitas Operasi
     - label: cash.investing
+      is_other: false
       section: cash
       template_row: 121
       check_only: true
       description: Arus Kas Neto dari Aktivitas Investasi
     - label: cash.financing
+      is_other: false
       section: cash
       template_row: 141
       check_only: true
       description: Arus Kas Neto dari Aktivitas Pendanaan
     - label: cash.net_change
+      is_other: false
       section: cash
       template_row: 142
       check_only: true
       description: Kenaikan (Penurunan) Neto Kas / Net change in cash
     - label: cash.beginning
+      is_other: false
       section: cash
       template_row: 143
       share: true
       check_only: true
       description: Saldo Kas dan Setara Kas Pada Awal Tahun / Cash at the beginning
     - label: cash.fx_effect
+      is_other: false
       section: cash
       template_row: 143
       check_only: true
       share: true
       description: Pengaruh perubahan kurs mata uang asing
     - label: cash.ending
+      is_other: false
       section: cash
       template_row: 144
       check_only: true

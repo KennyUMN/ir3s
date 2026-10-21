@@ -73,159 +73,198 @@ statements:
   balance_sheet:
     # --- assets, current -------------------------------------------------
     - label: assets.cash_and_equivalents
+      is_other: false
       section: assets.current
       template_row: 8
       description: Cash and cash equivalents
     - label: assets.receivables
+      is_other: false
       section: assets.current
       template_row: 9
       description: Receivables from customers
     - label: assets.other_receivables
+      is_other: false
       section: assets.current
       template_row: 10
       description: Other receivables
     - label: assets.inventories
+      is_other: false
       section: assets.current
       template_row: 11
       description: Inventories
     - label: assets.prepaid_taxes
+      is_other: false
       section: assets.current
       template_row: 12
       description: Prepaid taxes
     - label: assets.advances_and_prepaid
+      is_other: false
       section: assets.current
       template_row: 13
       description: Advances and prepaid expenses
     - label: assets.held_for_sale
+      is_other: false
       section: assets.current
       template_row: 14
       description: Assets held for sale
     - label: assets.other_current
+      is_other: false
       section: assets.current
+      is_other: true
       template_row: 15
       description: Any other current asset
     # --- assets, non-current ---------------------------------------------
     - label: assets.due_from_related
+      is_other: false
       section: assets.non_current
       template_row: 19
       description: Due from related parties
     - label: assets.claim_for_tax_refund
+      is_other: false
       section: assets.non_current
       template_row: 20
       description: Claims for tax refund
     - label: assets.deferred_tax
+      is_other: false
       section: assets.non_current
       template_row: 21
       description: Deferred tax assets
     - label: assets.fixed_assets
+      is_other: false
       section: assets.non_current
       template_row: 22
       description: Fixed assets
     - label: assets.right_of_use
+      is_other: false
       section: assets.non_current
       template_row: 23
       description: Right of use assets
     - label: assets.goodwill
+      is_other: false
       section: assets.non_current
       template_row: 24
       description: Goodwill and intangible assets
     - label: assets.other_non_current
+      is_other: false
       section: assets.non_current
+      is_other: true
       template_row: 25
       description: Every other non-current asset
     # --- assets, totals ---------------------------------------------------
     - label: assets.total_current
+      is_other: false
       section: assets.current
       template_row: 16
       is_total: true
       derived: true
       description: Total current assets
     - label: assets.total_non_current
+      is_other: false
       section: assets.non_current
       template_row: 26
       is_total: true
       derived: true
       description: Total non-current assets
     - label: assets.total
+      is_other: false
       section: assets
       template_row: 27
       is_total: true
       description: Total assets
     # --- liabilities ------------------------------------------------------
     - label: liabilities.short_term_debt
+      is_other: false
       section: liabilities.current
       template_row: 30
       description: Short-term borrowings
     - label: liabilities.payables
+      is_other: false
       section: liabilities.current
       template_row: 31
       description: Trade and other payables
     - label: liabilities.other_payables
+      is_other: false
       section: liabilities.current
+      is_other: true
       template_row: 32
       description: Every other current liability
     - label: liabilities.taxes_payable
+      is_other: false
       section: liabilities.current
       template_row: 33
       description: Taxes payable
     - label: liabilities.accrued_expenses
+      is_other: false
       section: liabilities.current
       template_row: 34
       description: Accrued expenses
     - label: liabilities.contract_liabilities
+      is_other: false
       section: liabilities.current
       template_row: 35
       description: Contract liabilities
     - label: liabilities.deposits_from_customers
+      is_other: false
       section: liabilities.current
       template_row: 36
       share: true
       description: Deposits from customers
     - label: liabilities.liabilities_held_for_sale
+      is_other: false
       section: liabilities.current
       template_row: 37
       description: Liabilities associated with assets held for sale
     - label: liabilities.short_term_employee_benefits
+      is_other: false
       section: liabilities.current
       template_row: 38
       description: Short-term employee benefits
     - label: liabilities.current_bank_loans
+      is_other: false
       section: liabilities.current
       template_row: 40
       description: Current maturities of long-term bank loans
     - label: liabilities.current_lease_liabilities
+      is_other: false
       section: liabilities.current
       template_row: 41
       description: Current maturities of lease liabilities
     - label: liabilities.long_term_bank_loans
+      is_other: false
       section: liabilities.non_current
       template_row: 46
       description: Long-term borrowings
     - label: liabilities.long_term_lease_liabilities
+      is_other: false
       section: liabilities.non_current
       template_row: 47
       description: Long-term lease liabilities
     - label: liabilities.long_term_employee_benefits
+      is_other: false
       section: liabilities.non_current
       template_row: 48
       description: Long-term employee benefits
     - label: liabilities.deferred_tax
+      is_other: false
       section: liabilities.non_current
       template_row: 49
       description: Deferred tax liabilities
     - label: liabilities.total_current
+      is_other: false
       section: liabilities.current
       template_row: 42
       is_total: true
       derived: true
       description: Total current liabilities
     - label: liabilities.total_non_current
+      is_other: false
       section: liabilities.non_current
       template_row: 50
       is_total: true
       derived: true
       description: Total non-current liabilities
     - label: liabilities.total
+      is_other: false
       section: liabilities
       template_row: 51
       is_total: true
@@ -235,6 +274,7 @@ statements:
     # The template has no row for them, so they go into the deposits row,
     # which the template chains forward from the last historical column.
     - label: syirkah.total
+      is_other: false
       section: syirkah
       template_row: 36
       share: true
@@ -242,45 +282,56 @@ statements:
       description: Temporary syirkah deposits, reported between liabilities and equity
     # --- equity -----------------------------------------------------------
     - label: equity.share_capital
+      is_other: false
       section: equity.parent
       template_row: 53
       description: Issued and fully paid-up capital
     - label: equity.paid_in_capital
+      is_other: false
       section: equity.parent
       template_row: 54
       description: Additional paid-in capital
     - label: equity.other_reserves
+      is_other: false
       section: equity.parent
+      is_other: true
       template_row: 55
       description: Every other reserve, including treasury stock and revaluation
     - label: equity.foreign_currency
+      is_other: false
       section: equity.parent
       template_row: 56
       description: Foreign currency translation differences
     - label: equity.retained_appropriated
+      is_other: false
       section: equity.parent
       template_row: 58
       description: Appropriated retained earnings
     - label: equity.retained_unappropriated
+      is_other: false
       section: equity.parent
       template_row: 59
       description: Unappropriated retained earnings
     - label: equity.parent_total
+      is_other: false
       section: equity.parent
       template_row: 60
       is_total: true
       description: Total equity attributable to owners of the parent
     - label: equity.non_controlling
+      is_other: false
       section: equity
       template_row: 61
       description: Non-controlling interests
     - label: equity.total
+      is_other: false
       section: equity
       template_row: 62
       is_total: true
       description: Total equity
     # --- equity, total is what the template computes ------------------------
     - label: equity.grand_total
+      is_other: false
       section: equity
       template_row: 63
       is_total: true
@@ -292,69 +343,85 @@ statements:
     # the operating lines land in the "other operating" rows and the template's
     # own subtotal formulas still compute.
     - label: income.revenues
+      is_other: false
       section: income
       template_row: 69
       description: Total operating income
     - label: income.cost_of_revenues
+      is_other: false
       section: income
       template_row: 70
       description: Total operating expense
     - label: income.gross_profit
+      is_other: false
       section: income
       template_row: 71
       is_total: true
       derived: true
       description: Gross profit
     - label: income.operating_expenses
+      is_other: false
       section: income
       template_row: 72
       description: Operating expenses
     - label: income.operating_profit
+      is_other: false
       section: income
       template_row: 73
       is_total: true
       derived: true
       description: Operating profit
     - label: income.finance_income
+      is_other: false
       section: income
       template_row: 74
       description: Finance income
     - label: income.finance_cost
+      is_other: false
       section: income
       template_row: 75
       description: Finance cost
     - label: income.other_operating_income
+      is_other: false
       section: income
+      is_other: true
       template_row: 76
       description: Other operating income
     - label: income.other_operating_expenses
+      is_other: false
       section: income
       template_row: 77
       description: Other operating expenses
     - label: income.pretax
+      is_other: false
       section: income
       template_row: 78
       is_total: true
       derived: true
       description: Profit before tax
     - label: income.tax
+      is_other: false
       section: income
       template_row: 79
       description: Income tax expense
     - label: income.net_income
+      is_other: false
       section: income
       template_row: 80
       is_total: true
       description: Net profit for the year
     - label: income.attributable_to_parent
+      is_other: false
       section: income
       template_row: 83
       description: Net profit attributable to owners of the parent
     - label: income.non_controlling
+      is_other: false
       section: income
       template_row: 84
       description: Net profit attributable to non-controlling interests
     - label: income.total
+      is_other: false
       section: income
       template_row: 86
       is_total: true
@@ -372,42 +439,50 @@ statements:
     # replaced too. The balance check (row 64) is the one that proves the
     # fill.
     - label: cash.operating
+      is_other: false
       section: cash
       template_row: 112
       check_only: true
       description: Net cash from operating activities
     - label: cash.investing
+      is_other: false
       section: cash
       template_row: 121
       check_only: true
       description: Net cash from investing activities
     - label: cash.financing
+      is_other: false
       section: cash
       template_row: 141
       check_only: true
       description: Net cash from financing activities
     - label: cash.net_change
+      is_other: false
       section: cash
       template_row: 142
       check_only: true
       description: Net change in cash and cash equivalents
     - label: cash.beginning
+      is_other: false
       section: cash
       template_row: 143
       check_only: true
       description: Cash and cash equivalents at beginning of year
     - label: cash.fx_effect
+      is_other: false
       section: cash
       template_row: 143
       check_only: true
       description: Effect of foreign exchange rate changes on cash
     - label: cash.ending
+      is_other: false
       section: cash
       template_row: 144
       is_total: true
       check_only: true
       description: Cash and cash equivalents at end of year
     - label: cash.other
+      is_other: false
       section: cash
       template_row: 112
       check_only: true
