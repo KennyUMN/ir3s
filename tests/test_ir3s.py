@@ -296,6 +296,24 @@ def test_a_label_that_wraps_over_several_lines_is_one_account():
     assert investment.label.startswith("Properti investasi"), investment.label
 
 
+def test_a_full_rupiah_statement_is_divided_down_to_a_millions_template():
+    """A statement may be reported in a different unit from the template.
+
+    Deltamas reports in full rupiah and the template's columns are in
+    millions, so its figures have to be divided by a million before they are
+    written, or every number in the model is a million times too large.
+    """
+    spec_path = Path(__file__).parents[1] / "specs" / "dmas.yaml"
+    template = Path("/Users/kennyvws/.hermes/cache/scratch/fsm/template.xlsx")
+    if not spec_path.exists() or not template.exists():
+        pytest.skip("Deltamas spec or template not present")
+
+    spec = load_spec(spec_path)
+    assert spec.scale_to_target("Rupiah") == Decimal("0.000001")
+    # A report already in the template's unit is left alone.
+    assert spec.scale_to_target("millions of Rupiah") == Decimal(1)
+
+
 def test_reader_handles_a_figure_layout_with_a_notes_column():
     """A statement whose figure columns outnumber its year columns.
 
