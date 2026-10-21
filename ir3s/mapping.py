@@ -1,0 +1,164 @@
+"""Map printed PDF labels onto canonical labels.
+
+The LLM decides only *which printed line is which canonical line*, by index.
+Every number comes from the extractor's Row cells. Anything the LLM says about
+values is never read.
+"""
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import Any, Callable
+
+from . import llm
+
+__all__ = ["CanonicalLabel", "build_prompt", "map_statement", "map_with_retry"]
+
+Values = dict[int, Decimal]
+Mapped = dict[str, Values]
+
+
+class CanonicalLabel:
+    """One target line from the model spec. Build with `from_spec`."""
+
+    def __init__(self, label: str, section: str = "", is_total: bool = False,
+                 description: str = "", is_other: bool | None = None,
+                 derived: bool = False):
+        self.label, self.section, self.is_total, self.description = label, section, is_total, description
+        self.derived = derived
+        # A catch-all bucket. The spec says which one it is; the name is only a
+        # fallback for a spec that does not say.
+        self.is_other = (not is_total and label.rsplit(".", 1)[-1].startswith("other")
+                         if is_other is None else is_other)
+
+    @classmethod
+    def from_spec(cls, entry: Any) -> "CanonicalLabel":
+        """Accept a CanonicalLabel, a spec dict, or any object with the same attributes."""
+        if isinstance(entry, cls):
+            return entry
+        get = entry.get if isinstance(entry, dict) else lambda k, d=None: getattr(entry, k, d)
+        return cls(get("label"), get("section", "") or "", bool(get("is_total", False)),
+                   get("description", "") or "", get("is_other", None), bool(get("derived", False)))
+
+
+def _in_section(label: CanonicalLabel, section: str) -> bool:
+    return label.section == section or label.section.startswith(section + ".")
+
+
+def build_prompt(rows: list, labels: list[CanonicalLabel], years: list[int],
+                 feedback: list[str] | None = None) -> str:
+    """Compact prompt: targets and indexed printed lines with values as context."""
+    targets = [f"- {c.label} [{c.section}]{' TOTAL' if c.is_total else ''}"
+               + (f": {c.description}" if c.description else "")
+               for c in labels]
+    shown = years[-2:]
+    printed = []
+    for i, row in enumerate(rows):
+        vals = " | ".join(str(row.value_for(y)) if row.value_for(y) is not None else "-" for y in shown)
+        section = f"[{row.section}] " if row.section else ""
+        printed.append(f"{i}. {section}{row.label}  ({vals})")
+    parts = [
+        "Match each printed financial-statement line to one canonical label.",
+        "Canonical labels (label [section]):", *targets,
+        f"Printed lines (index. label (values for {', '.join(map(str, shown))})):", *printed,
+        "Rules:",
+        "- a line whose label says Total or NET is a subtotal: assign it to the matching TOTAL label;",
+        "- a line with no close match goes to the 'other' label of its own section if there is one;",
+        "- otherwise leave the line unassigned;",
+        "- a canonical label may take several indices (they are summed);",
+        "- do not output any numbers, only indices.",
+        'Reply JSON: {"mapping": {"<canonical label>": [<index>, ...]}, "reason": "<one short sentence>"}',
+    ]
+    if feedback:
+        parts += ["Your previous mapping failed these accounting checks; fix the mapping:", *feedback]
+    return "\n".join(parts)
+
+
+def _parse_assignment(reply: dict, rows: list, labels: list[CanonicalLabel]) -> dict[str, list[int]]:
+    """Keep only valid (known label, in-range int index, unused) pairs. Everything else is dropped."""
+    allowed = {c.label for c in labels}
+    used: set[int] = set()
+    out: dict[str, list[int]] = {}
+    raw = reply.get("mapping")
+    for label, idxs in (raw.items() if isinstance(raw, dict) else []):
+        if label not in allowed or not isinstance(idxs, list):
+            continue
+        for i in idxs:
+            if isinstance(i, int) and not isinstance(i, bool) and 0 <= i < len(rows) and i not in used:
+                used.add(i)
+                out.setdefault(label, []).append(i)
+    return out
+
+
+def _sum_rows(rows: list, idxs: list[int], years: list[int]) -> Values:
+    return {y: sum((rows[i].value_for(y) or Decimal(0) for i in idxs), Decimal(0)) for y in years}
+
+
+def map_statement(
+    rows: list,
+    labels: list,
+    years: list[int] | None = None,
+    *,
+    feedback: list[str] | None = None,
+    ask: Callable[..., dict] | None = None,
+) -> Mapped:
+    """Map one statement. Returns canonical label -> {year: Decimal}.
+
+    Values are summed from the extractor rows the LLM pointed at. For each mapped
+    total, the section's "other" bucket gets (reported total - sum of the section's
+    other leaves), deepest section first, so the roll-up ties to the PDF.
+    Labels nothing maps to come back as 0. Total labels carry the PDF-reported value
+    (the writer must still treat them as derived).
+    """
+    canon = [CanonicalLabel.from_spec(c) for c in labels]
+    years = years or sorted({c.year for r in rows for c in r.cells})
+    reply = (ask or llm.chat_json)(build_prompt(rows, canon, years, feedback))
+    assign = _parse_assignment(reply, rows, canon)
+
+    zero = {y: Decimal(0) for y in years}
+    result: Mapped = {c.label: (_sum_rows(rows, assign[c.label], years) if c.label in assign else dict(zero))
+                      for c in canon}
+
+    # A total the PDF does not print (a bank has no "Total current assets")
+    # is the sum of its section's leaves.
+    for c in canon:
+        if not c.derived or c.label in assign:
+            continue
+        under = [x for x in canon if not x.is_total and _in_section(x, c.section)]
+        result[c.label] = {
+            y: sum((result[x.label][y] for x in under), Decimal(0)) for y in years
+        }
+    return result
+
+
+def map_with_retry(
+    rows: list,
+    labels: list,
+    years: list[int] | None = None,
+    *,
+    check: Callable[[Mapped], list] | None = None,
+    max_attempts: int = 3,
+    ask: Callable[..., dict] | None = None,
+) -> Mapped:
+    """map_statement, re-prompting with identity violations until `check` passes.
+
+    `check(mapped)` returns a list of violations (empty = ok). If omitted it is
+    taken from ir3s.schemas (imported lazily); if that module or a checker is
+    missing, no retry happens and the first mapping is returned.
+    """
+    if check is None:
+        try:
+            from . import schemas  # sibling module, written concurrently
+        except ImportError:
+            schemas = None
+        # ponytail: checker name is a guess until schemas.py lands; pass check= to override.
+        check = next((getattr(schemas, n) for n in ("check_identities", "validate_identities", "validate")
+                      if schemas is not None and callable(getattr(schemas, n, None))), None)
+    feedback: list[str] | None = None
+    mapped: Mapped = {}
+    for _ in range(max(1, max_attempts)):
+        mapped = map_statement(rows, labels, years, feedback=feedback, ask=ask)
+        violations = check(mapped) if check else []
+        if not violations:
+            return mapped
+        feedback = [str(v) for v in violations]
+    return mapped

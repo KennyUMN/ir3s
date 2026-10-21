@@ -1,0 +1,112 @@
+"""Thin client for any OpenAI-compatible /v1/chat/completions endpoint.
+
+Configured by environment:
+  IR3S_LLM_BASE_URL  default https://openrouter.ai/api/v1
+  IR3S_LLM_API_KEY   default: the value of OPENROUTER_API_KEY
+  IR3S_LLM_MODEL     default anthropic/claude-sonnet-5.5
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import time
+
+import httpx
+
+__all__ = ["LLMError", "chat", "chat_json"]
+
+DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_MODEL = "anthropic/claude-sonnet-5.5"
+JSON_INSTRUCTION = "Reply with a single JSON object and nothing else: no prose, no code fences."
+_RETRYABLE = {408, 425, 429}
+
+
+class LLMError(RuntimeError):
+    """The LLM call failed for good (bad config, non-retryable HTTP error, retries exhausted)."""
+
+
+def chat(
+    prompt: str,
+    *,
+    system: str | None = None,
+    json_mode: bool = False,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = None,
+    max_attempts: int = 4,
+    backoff: float = 1.0,
+    timeout: float = 60.0,
+    # A mapping of a whole statement is a few thousand tokens of JSON.
+    max_tokens: int = 16384,
+    client: httpx.Client | None = None,
+) -> str:
+    """Send one prompt, return the assistant text.
+
+    Retries network errors, 408/425/429 and 5xx with exponential backoff
+    (backoff, 2*backoff, ...). Any other 4xx fails immediately.
+    Explicit arguments win over environment variables.
+    """
+    key = api_key or os.environ.get("IR3S_LLM_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        raise LLMError("no API key: set IR3S_LLM_API_KEY (or OPENROUTER_API_KEY) or pass api_key=")
+    url = (base_url or os.environ.get("IR3S_LLM_BASE_URL") or DEFAULT_BASE_URL).rstrip("/") + "/chat/completions"
+    system_text = system or ""
+    if json_mode:
+        system_text = (system_text + "\n" + JSON_INSTRUCTION).strip()
+    messages = ([{"role": "system", "content": system_text}] if system_text else []) + [
+        {"role": "user", "content": prompt}
+    ]
+    body: dict = {
+        "model": model or os.environ.get("IR3S_LLM_MODEL") or DEFAULT_MODEL,
+        "messages": messages,
+        "temperature": 0,
+        # The mapping reply is a short JSON object, but the provider reserves
+        # the model's whole output allowance against the key's credit, so it
+        # has to be capped explicitly.
+        "max_tokens": max_tokens,
+    }
+    if json_mode:
+        body["response_format"] = {"type": "json_object"}
+    headers = {"Authorization": f"Bearer {key}"}
+
+    http = client or httpx.Client(timeout=timeout)
+    last = "unknown error"
+    try:
+        for attempt in range(max_attempts):
+            if attempt:
+                time.sleep(backoff * 2 ** (attempt - 1))
+            try:
+                resp = http.post(url, json=body, headers=headers)
+            except httpx.TransportError as exc:
+                last = f"network error: {exc}"
+                continue
+            if resp.status_code in _RETRYABLE or resp.status_code >= 500:
+                last = f"HTTP {resp.status_code}: {resp.text[:200]}"
+                continue
+            if resp.status_code >= 400:
+                raise LLMError(f"LLM request rejected, HTTP {resp.status_code}: {resp.text[:300]}")
+            try:
+                return resp.json()["choices"][0]["message"]["content"] or ""
+            except (ValueError, KeyError, IndexError, TypeError) as exc:
+                raise LLMError(f"unexpected response shape: {resp.text[:300]}") from exc
+    finally:
+        if client is None:
+            http.close()
+    raise LLMError(f"LLM request failed after {max_attempts} attempts; last: {last}")
+
+
+def chat_json(prompt: str, **kwargs) -> dict:
+    """`chat` in JSON mode, parsed. Tolerates a stray ```json fence."""
+    text = chat(prompt, json_mode=True, **kwargs).strip()
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
+    try:
+        data = json.loads(text)
+    except ValueError as exc:
+        # The tail matters more than the head: a reply cut short shows where.
+        raise LLMError(
+            f"model did not return valid JSON ({exc}); reply ended: ...{text[-200:]}"
+        ) from exc
+    if not isinstance(data, dict):
+        raise LLMError(f"model returned JSON that is not an object: {text[:300]}")
+    return data

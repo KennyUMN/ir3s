@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ir3s"
+version = "0.1.0"
+description = "Extract 3-statement financial data from investor-relations PDFs into a model template"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "pymupdf>=1.24",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "openpyxl>=3.1",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+ir3s = "ir3s.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["ir3s*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
