@@ -87,9 +87,15 @@ def chat(
             if resp.status_code >= 400:
                 raise LLMError(f"LLM request rejected, HTTP {resp.status_code}: {resp.text[:300]}")
             try:
-                return resp.json()["choices"][0]["message"]["content"] or ""
+                content = resp.json()["choices"][0]["message"]["content"]
             except (ValueError, KeyError, IndexError, TypeError) as exc:
                 raise LLMError(f"unexpected response shape: {resp.text[:300]}") from exc
+            if not content or not content.strip():
+                # An empty reply is a transient upstream failure, so it is
+                # retried like one.
+                last = "the model returned an empty reply"
+                continue
+            return content
     finally:
         if client is None:
             http.close()

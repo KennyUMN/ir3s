@@ -142,8 +142,28 @@ def parse_number(token: str) -> Decimal | None:
     text = token.strip().rstrip("*").strip()
     if text in _DASHES:
         return Decimal(0)
-    negative = text.startswith("(") and text.endswith(")")
-    text = text.strip("()").replace(" ", "").replace(" ", "")
+    # A statement may print stray marks on a figure. A parenthesis pair means
+    # a negative. A trailing ")" with no opening "(" is an artifact of the
+    # layout, and so is a trailing "-". A leading "-" is a real minus sign
+    # unless it comes with that stray trailing ")", which is a hyphen that
+    # leaked out of the account name: "Jumlah kredit yang diberikan - bersih"
+    # prints its figure as "-9.199.578)".
+    parenthesised = text.startswith("(") and text.endswith(")")
+    if parenthesised:
+        negative = True
+        text = text.strip("()")
+    else:
+        negative = False
+        stray_paren = text.endswith(")")
+        if stray_paren:
+            text = text[:-1].strip()
+        if text.endswith("-"):
+            text = text[:-1].strip()
+        if text.startswith("-"):
+            if not stray_paren:
+                negative = True
+            text = text[1:].strip()
+    text = text.replace(" ", "").replace(" ", "")
     if not text or text == "-":
         return Decimal(0)
     if "," in text and "." in text:
@@ -290,12 +310,12 @@ def _figure_bands(
     """
     if not years:
         return []
-    header = lines[header_index]
     year_positions = []
-    for word in header:
-        year = parse_year(word[4].strip())
-        if year is not None:
-            year_positions.append((word[0], word[2], year))
+    for index in range(max(0, header_index - 3), min(header_index + 1, len(lines))):
+        for word in lines[index]:
+            year = parse_year(word[4].strip())
+            if year is not None:
+                year_positions.append((word[0], word[2], year))
     if not year_positions:
         return []
     centres = {year: (left + right) / 2 for left, right, year in year_positions}
@@ -357,6 +377,115 @@ def _in_any_band(word: tuple, bands: list[tuple[float, list[tuple]]]) -> bool:
     return False
 
 
+def _find_year_header(lines: list[list[tuple]]) -> tuple[int, list[int], float | None]:
+    """Locate the year header of a statement page.
+
+    The header is the line that names the year columns. A statement page
+    often has more than one line of years: the report's own date line says
+    "31 Desember 2019", and the column header says "2019 | Notes | 2018".
+    The column header is the one whose year positions sit where the figures
+    are, so the two are told apart by the figures.
+
+    A report may also split the header across lines, putting the
+    comparative year on a line of its own, so a short run of lines is
+    considered together.
+
+    Returns the index of the last line of the header block, the years, and
+    the x of the notes token.
+    """
+    # The usual case: one line carries the years and the notes token.
+    for index, line in enumerate(lines):
+        tokens = [word[4].strip() for word in line]
+        if not any(token.startswith(NOTES_TOKEN) for token in tokens):
+            continue
+        found = [
+            (word[0], parse_year(word[4].strip()))
+            for word in line
+            if parse_year(word[4].strip()) is not None
+        ]
+        if len(found) < 2:
+            continue
+        ordered = sorted(found)
+        if ordered[1][0] - ordered[0][0] < 20.0:
+            continue
+        if len({year for _, year in ordered}) < 2:
+            # The same year twice: this is the report's date line, which
+            # names the period in both languages, not the column header.
+            continue
+        return index, [year for _, year in ordered], next(
+            (word[0] for word in line if word[4].strip().startswith(NOTES_TOKEN)), None
+        )
+
+    # A report may spread its header over several lines, so every year token
+    # in the header area is a candidate, and the year columns are the ones
+    # that sit over the figure columns.
+    figure_columns = _figure_column_positions(lines)
+    candidates: list[tuple[int, list[int], float | None]] = []
+    for index, line in enumerate(lines[:20]):
+        found = [
+            (word[0], parse_year(word[4].strip()))
+            for word in line
+            if parse_year(word[4].strip()) is not None
+        ]
+        if not found:
+            continue
+        notes_x = next(
+            (word[0] for word in line if word[4].strip().startswith(NOTES_TOKEN)), None
+        )
+        # A year token over a figure column is a column header.
+        over = [
+            (position, year)
+            for position, year in found
+            if any(abs(position - column) < 60.0 for column in figure_columns)
+        ]
+        if len(over) < 1:
+            continue
+        candidates.append((index, over, notes_x))
+    if not candidates:
+        return -1, [], None
+
+    # The header block runs from the first candidate to the last, and the
+    # years are the distinct ones in it.
+    first = candidates[0][0]
+    last = candidates[-1][0]
+    positions: list[tuple[float, int]] = []
+    for index in range(first, last + 1):
+        for word in lines[index]:
+            year = parse_year(word[4].strip())
+            if year is None:
+                continue
+            if not any(abs(word[0] - column) < 60.0 for column in figure_columns):
+                continue
+            positions.append((word[0], year))
+    distinct = sorted({year for _, year in positions})
+    if len(distinct) < 2:
+        return -1, [], None
+    notes_x = next(
+        (
+            word[0]
+            for index in range(first, last + 1)
+            for word in lines[index]
+            if word[4].strip().startswith(NOTES_TOKEN)
+        ),
+        None,
+    )
+    return last, distinct, notes_x
+
+
+def _figure_column_positions(lines: list[list[tuple]]) -> list[float]:
+    """The x positions of the page's figure columns.
+
+    A figure column is a right edge that repeats down the page.
+    """
+    counts: dict[int, int] = {}
+    for line in lines:
+        for word in line:
+            if _is_numeric(word[4].strip()):
+                key = round(word[2] / 10.0)
+                counts[key] = counts.get(key, 0) + 1
+    return [key * 10 for key, count in counts.items() if count >= 3]
+
+
 def read_page(
     page: pymupdf.Page, page_number: int = 0
 ) -> tuple[list[int], list[Row]]:
@@ -366,29 +495,11 @@ def read_page(
     """
     lines = _cluster_lines(page.get_text("words"))
 
-    header_index = None
-    years: list[int] = []
-    for index, line in enumerate(lines):
-        tokens = [w[4].strip() for w in line]
-        if not any(t.startswith(NOTES_TOKEN) for t in tokens):
-            continue
-        found = []
-        for word in line:
-            year = parse_year(word[4].strip())
-            if year is not None:
-                found.append((word[0], year))
-        if len(found) >= 2:
-            header_index = index
-            years = [year for _, year in sorted(found)]
-            break
-    if header_index is None:
+    header_index, years, notes_x = _find_year_header(lines)
+    if header_index < 0:
         return [], []
 
     clusters = _figure_bands(lines, header_index, years)
-    notes_x = next(
-        (word[0] for word in lines[header_index] if word[4].strip().startswith(NOTES_TOKEN)),
-        None,
-    )
 
     bold_y = _bold_lines(page)
     rows: list[Row] = []
@@ -488,24 +599,97 @@ def has_column_header(page: pymupdf.Page) -> bool:
 def find_statement_pages(document: pymupdf.Document) -> dict[str, list[int]]:
     """Map statement kind to the page numbers that carry it.
 
-    A consolidated statement page is one that carries the `Notes | 2025 | 2024`
-    column header. That gate excludes the notes (which quote statement titles
-    in body text) and the parent-entity statements at the back of the report
-    (which have no Notes column). The header band names the statement.
+    A statement page is one that names a statement in its header band. A
+    consolidated report also carries the parent-entity statements at the
+    back, under "supplementary financial information" or "additional
+    information statements", and those are excluded.
+
+    The `Notes | 2025 | 2024` column header is a second signal, not a
+    requirement: a statement whose header carries only the years (a 2019
+    report, for instance) is still a statement, and requiring the notes
+    column would drop it silently.
     """
     found: dict[str, list[int]] = {}
     current: str | None = None
     for index, page in enumerate(document):
-        if not has_column_header(page):
+        if _is_parent_only(page):
             current = None
             continue
         kind = _header_kind(page)
         if kind is not None:
             current = kind
+        elif not has_column_header(page):
+            # No title of its own: the statement is over unless this page
+            # continues one, which the column header shows.
+            current = None
         if current is None:
             continue
         found.setdefault(current, []).append(index)
     return found
+
+
+def _is_parent_only(page: pymupdf.Page) -> bool:
+    """True for the parent-entity statements at the back of a report.
+
+    A consolidated report prints the parent's own statements at the back,
+    with the same titles, so the title alone does not tell them apart. Those
+    pages say "supplementary financial information" or "additional information
+    statements", and they carry no column header, while the consolidated
+    ones do.
+    """
+    text = page.get_text().lower()
+    if "supplementary financial information" in text:
+        return True
+    if "informasi keuangan pelengkap" in text:
+        return True
+    if "additional information statements" in text:
+        return True
+    # A report that does not say "consolidated" anywhere is a standalone
+    # one, and every statement in it counts.
+    if "consolidated" in text or "konsolidasian" in text:
+        return False
+    # Otherwise the parent's statements are the ones with a title but no
+    # column header, which the consolidated ones always have.
+    return _header_kind(page) is not None and not has_column_header(page)
+
+
+# The statements a report's own table of contents lists, and the words that
+# name each one.
+_TOC_STATEMENTS = (
+    ("balance_sheet", "laporan posisi keuangan", "statement of financial position"),
+    ("income_statement", "laporan laba rugi", "statement of profit or loss"),
+    ("equity", "laporan perubahan ekuitas", "statement of changes in equity"),
+    ("cash_flow", "laporan arus kas", "statement of cash flows"),
+)
+
+
+def missing_statements(document: pymupdf.Document, found: dict[str, list[int]]) -> list[str]:
+    """The statements the document lists but the reader did not find.
+
+    A report's table of contents names every statement it carries, so it is
+    the authority on what should have been read. Without this check a
+    statement that was not found looks exactly like a report that does not
+    have one.
+    """
+    listed = _listed_statements(document)
+    if not listed:
+        return []
+    return [kind for kind in listed if kind not in found]
+
+
+def _listed_statements(document: pymupdf.Document) -> set[str]:
+    """The statement kinds the document's table of contents lists."""
+    listed: set[str] = set()
+    for index in range(min(12, document.page_count)):
+        text = document[index].get_text().lower()
+        if "daftar isi" not in text and "table of contents" not in text:
+            continue
+        for kind, *words in _TOC_STATEMENTS:
+            if any(word in text for word in words):
+                listed.add(kind)
+        if listed:
+            break
+    return listed
 
 
 def _detect_unit(text: str) -> str:
@@ -568,6 +752,13 @@ def extract_statements(
     """
     document = pymupdf.open(pdf_path)
     pages = find_statement_pages(document)
+
+    absent = [kind for kind in missing_statements(document, pages) if kind in kinds]
+    if absent:
+        raise ExtractionError(
+            f"the report lists {', '.join(absent)} but no page was found for it. "
+            "The statement pages are not where this reader expects them."
+        )
 
     statements: dict[str, Statement] = {}
     for kind in kinds:

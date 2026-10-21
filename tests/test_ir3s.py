@@ -165,6 +165,29 @@ def test_reads_a_statement_from_each_sector_and_they_balance():
                 f"{name} {year}: assets != liabilities + equity"
 
 
+def test_finds_a_statement_whose_header_has_no_notes_token():
+    """A statement whose column header carries only the years.
+
+    CASS's 2019 statements put the comparative year on a line of its own and
+    spread the header over six lines. The reader used to find the report's
+    date line, which names the same year twice, and to read nothing at all.
+    """
+    from ir3s.extractor import extract_statements
+
+    pdf = AUDIT / "cass" / "cass_fs_2019.pdf"
+    if not pdf.exists():
+        pytest.skip("CASS fixture not present")
+    statements = extract_statements(str(pdf))
+    for kind in ("balance_sheet", "income_statement", "cash_flow"):
+        assert kind in statements, f"{kind} was not found"
+        assert statements[kind].rows, f"{kind} read no rows"
+    balance = statements["balance_sheet"]
+    for year in balance.years:
+        total = balance.row_for("TOTAL ASET TOTAL ASSETS")
+        if total is not None:
+            assert total.value_for(year) is not None
+
+
 def test_reader_handles_a_figure_layout_with_a_notes_column():
     """A statement whose figure columns outnumber its year columns.
 
@@ -243,6 +266,20 @@ def test_force_does_not_replace_a_computed_formula():
         assert template.sheet("3 Statements").cell(row=16, column=8).value == "=sum(H8:H15)"
     finally:
         copy.unlink(missing_ok=True)
+
+
+def test_a_stray_dash_is_not_a_minus_sign():
+    """A statement may print stray marks on a figure.
+
+    Across the four corpora every genuine negative is written "(123)". A
+    leading dash with no opening parenthesis is a hyphen that leaked out of
+    the account name, and a trailing one is an artifact of the layout.
+    """
+    assert parse_number("(9.199.578)") == Decimal("-9199578")
+    assert parse_number("-9.199.578)") == Decimal("9199578")
+    assert parse_number("9.199.578)") == Decimal("9199578")
+    assert parse_number("1.808.594-") == Decimal("1808594")
+    assert parse_number("-1.234") == Decimal("-1234")
 
 
 def test_number_formats_do_not_confuse_a_thousands_group_with_a_decimal():
