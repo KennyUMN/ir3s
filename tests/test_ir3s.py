@@ -188,6 +188,47 @@ def test_finds_a_statement_whose_header_has_no_notes_token():
             assert total.value_for(year) is not None
 
 
+def test_a_group_member_carries_the_group_name():
+    """A statement may print a group name and its members on separate lines.
+
+    CASS prints "Piutang usaha" with no figures and then "Pihak berelasi" and
+    "Pihak ketiga" below it, each with its own. The members must carry the
+    group's name, or a model sees an unrelated line called "Pihak berelasi".
+    """
+    from ir3s.extractor import extract_statements
+
+    pdf = AUDIT / "cass" / "cass_fs_2023.pdf"
+    if not pdf.exists():
+        pytest.skip("CASS fixture not present")
+    balance = extract_statements(str(pdf))["balance_sheet"]
+    labels = [row.label for row in balance.rows]
+    members = [label for label in labels if "Pihak berelasi" in label]
+    assert members, "the related-party line was not read"
+    for label in members:
+        # A member names the group it belongs to, which is a receivable or a
+        # payable.
+        assert "Piutang" in label or "Utang" in label, \
+            f"the member lost its group: {label!r}"
+
+
+def test_a_note_reference_is_not_read_as_a_figure():
+    """The notes column holds numbers that sit inside a figure band.
+
+    Reading one as a figure both invents a value and hides the account it
+    belongs to, which then never becomes a group heading.
+    """
+    from ir3s.extractor import extract_statements
+
+    pdf = AUDIT / "cass" / "cass_fs_2023.pdf"
+    if not pdf.exists():
+        pytest.skip("CASS fixture not present")
+    balance = extract_statements(str(pdf))["balance_sheet"]
+    for row in balance.rows:
+        # A notes reference looks like "3,5,29" or "10b".
+        assert not row.label.strip() in {"3,5,29", "3,6,29", "3,5,29,42,46,49"}, \
+            f"a notes reference became an account: {row.label!r}"
+
+
 def test_reader_handles_a_figure_layout_with_a_notes_column():
     """A statement whose figure columns outnumber its year columns.
 

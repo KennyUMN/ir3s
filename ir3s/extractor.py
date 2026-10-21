@@ -338,6 +338,21 @@ def _figure_bands(
     return [chosen[year] for year in years if year in chosen]
 
 
+def _is_indented_under(first_x: float, parent_x: float) -> bool:
+    """True when a line sits indented under the group it follows.
+
+    A group's members are printed slightly to the right of the group's own
+    name, which is how a statement shows that a line belongs to the line
+    above it.
+    """
+    return parent_x and first_x > parent_x + 2.0
+
+
+def _in_notes_column(word: tuple, notes_x: float | None) -> bool:
+    """True when a word sits in the notes reference column."""
+    return notes_x is not None and abs(word[0] - notes_x) < NOTES_COLUMN_PT
+
+
 def _is_label_position(
     word: tuple, bands: list[tuple[float, list[tuple]]], notes_x: float | None
 ) -> bool:
@@ -504,6 +519,7 @@ def read_page(
     bold_y = _bold_lines(page)
     rows: list[Row] = []
     pending: list[str] = []
+    parent = ""
     section = ""
     for line in lines[header_index + 1 :]:
         label_parts: list[str] = []
@@ -512,6 +528,12 @@ def read_page(
         for word in line:
             text = word[4].strip()
             if _is_numeric(text) and _in_any_band(word, clusters):
+                if _in_notes_column(word, notes_x):
+                    # A note reference, not a figure: it is a number, and it
+                    # sits close enough to the first figure column to fall
+                    # inside its band.
+                    note_parts.append(text)
+                    continue
                 figures.append(word)
                 continue
             if _is_label_position(word, clusters, notes_x):
@@ -520,6 +542,7 @@ def read_page(
                 note_parts.append(text)
 
         label = " ".join(label_parts).strip()
+        word_first_x = min((word[0] for word in line), default=0.0)
         is_bold = any(round(line[0][1]) == y for y in bold_y)
         if not figures:
             if label:
@@ -529,9 +552,28 @@ def read_page(
                     # part of the next line's label.
                     section = label
                     pending = []
+                    parent = ""
+                    parent_x = 0.0
                 else:
-                    pending.append(label)
+                    # A plain line with no figures heads a group whose
+                    # members follow on the next lines, each with its own
+                    # figures: "Piutang usaha" then "Pihak berelasi" and
+                    # "Pihak ketiga". The members need the group's name.
+                    parent = " ".join(pending + [label]).strip()
+                    parent_x = word_first_x
+                    pending = []
             continue
+
+        # A member of a group carries the group's name, so the model can
+        # tell a related-party receivable from any other line. A member is
+        # indented under the group; a line at the group's own indent is a new
+        # account and the group ends.
+        full_label = " ".join(pending + [label]).strip() if pending else label
+        if parent:
+            if _is_indented_under(word_first_x, parent_x):
+                full_label = f"{parent} {full_label}"
+            else:
+                parent = ""
 
         cells: list[Cell] = []
         for figure in figures:
@@ -550,7 +592,7 @@ def read_page(
 
         rows.append(
             Row(
-                label=" ".join(pending + [label]).strip() if pending else label,
+                label=full_label,
                 cells=cells,
                 notes=" ".join(note_parts).strip(),
                 page=page_number,
