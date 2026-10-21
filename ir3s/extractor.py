@@ -429,17 +429,42 @@ def find_statement_pages(document: pymupdf.Document) -> dict[str, list[int]]:
 
 
 def _detect_unit(text: str) -> str:
-    """Read the reporting unit off the statement header."""
+    """Read the reporting unit off the statement header.
+
+    Indonesian statements say "jutaan Rupiah" (millions) or "Rupiah" alone
+    (full rupiah). The English translation says "millions of Rupiah".
+    """
     lowered = text.lower()
-    if "millions of rupiah" in lowered or "juta rupiah" in lowered:
+    if "millions of rupiah" in lowered or "jutaan rupiah" in lowered or "juta rupiah" in lowered:
         return "millions of Rupiah"
-    if "billions" in lowered:
+    if "billions" in lowered or "miliar rupiah" in lowered or "milyar" in lowered:
         return "billions"
-    if "thousands" in lowered:
+    if "thousands" in lowered or "ribu rupiah" in lowered:
         return "thousands"
     if "millions" in lowered:
         return "millions"
+    if "rupiah" in lowered:
+        # Full rupiah, as opposed to a stated multiple of it.
+        return "Rupiah"
     return "unspecified"
+
+
+# How many units of the reporting currency one printed figure represents.
+# The template's columns are in millions, so a full-rupiah report has to be
+# divided down before it is written.
+UNIT_SCALE: dict[str, Decimal] = {
+    "Rupiah": Decimal(1),
+    "units": Decimal(1),
+    "thousands": Decimal(1_000),
+    "millions": Decimal(1_000_000),
+    "millions of Rupiah": Decimal(1_000_000),
+    "billions": Decimal(1_000_000_000),
+}
+
+
+def unit_scale(unit: str) -> Decimal:
+    """The factor that converts a printed figure into the reporting unit."""
+    return UNIT_SCALE.get(unit, Decimal(1))
 
 
 def _detect_company(text: str) -> str:

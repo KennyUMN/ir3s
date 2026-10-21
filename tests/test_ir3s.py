@@ -137,6 +137,28 @@ def test_reader_handles_a_figure_layout_with_a_notes_column():
         pdf.unlink(missing_ok=True)
 
 
+def test_unit_is_read_off_the_statement_header():
+    """The reporting unit decides the scale of every figure.
+
+    Indonesian statements say "jutaan Rupiah" (millions) or "Rupiah" alone
+    (full rupiah). The old matcher looked for "juta rupiah" and missed
+    "jutaan Rupiah" by one letter, and had no case for full rupiah at all.
+    """
+    from ir3s.extractor import _detect_unit, unit_scale
+
+    assert _detect_unit("(Expressed in millions of Rupiah, unless otherwise stated)") \
+        == "millions of Rupiah"
+    assert _detect_unit("(Disajikan dalam jutaan Rupiah, kecuali dinyatakan lain)") \
+        == "millions of Rupiah"
+    assert _detect_unit("(Disajikan dalam Rupiah, kecuali dinyatakan lain)") == "Rupiah"
+    assert _detect_unit("(Angka-angka Disajikan dalam Rupiah, kecuali Dinyatakan Lain)") \
+        == "Rupiah"
+    assert _detect_unit("no unit here") == "unspecified"
+
+    assert unit_scale("millions of Rupiah") == Decimal(1_000_000)
+    assert unit_scale("Rupiah") == Decimal(1)
+
+
 def test_force_does_not_replace_a_computed_formula():
     """--force may replace a forward link, never a computed total.
 
