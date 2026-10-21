@@ -100,9 +100,10 @@ class SpecLine(BaseModel):
     template_row: int
     is_total: bool = False
     description: str = ""
-    # A residual bucket: the LLM never targets it, the mapper fills it with
-    # whatever the section's leaves did not account for.
-    is_other: bool = False
+    # A catch-all bucket. A line the mapper cannot place lands here, so a
+    # granular item never has to fit the template one for one. When the spec
+    # does not say, a label whose last name part starts with "other" is one.
+    is_other: bool | None = None
     # A total the PDF does not print (a bank's liabilities net of nothing, for
     # example). Its value is the sum of the section's leaves.
     derived: bool = False

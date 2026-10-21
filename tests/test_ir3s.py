@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 
 from ir3s.extractor import extract_statements, parse_number
-from ir3s.mapping import map_statement
-from ir3s.schemas import Model, validate_model
+from ir3s.mapping import CanonicalLabel, build_prompt, map_statement
+from ir3s.schemas import Model, load_spec, validate_model
 
 FIXTURES = Path(__file__).parent / "fixtures"
 PDF = FIXTURES / "bca_fs_2025.pdf"
@@ -118,6 +118,22 @@ def test_validator_passes_a_balanced_model():
         },
     )
     assert validate_model(model).ok
+
+
+def test_catch_all_buckets_are_detected_and_offered_to_the_model():
+    """A label named other_* is a catch-all, and the model must be offered it.
+
+    The mapper sends unmatched lines to a catch-all, so a bucket that is not
+    detected is a bucket the model can never fill.
+    """
+    spec = load_spec(SPEC)
+    labels = [CanonicalLabel.from_spec(item) for item in spec.lines("balance_sheet")]
+    others = [c.label for c in labels if c.is_other]
+    assert others, "the spec has no catch-all bucket"
+
+    prompt = build_prompt([], labels, [2024])
+    for label in others:
+        assert label in prompt, f"{label} is not offered to the model"
 
 
 def test_mapper_uses_the_extracted_numbers_not_the_models():

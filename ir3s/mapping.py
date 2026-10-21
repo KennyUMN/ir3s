@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 from . import llm
 
-__all__ = ["CanonicalLabel", "build_prompt", "map_statement", "map_with_retry"]
+__all__ = ["CanonicalLabel", "build_prompt", "map_statement"]
 
 Values = dict[int, Decimal]
 Mapped = dict[str, Values]
@@ -128,37 +128,3 @@ def map_statement(
             y: sum((result[x.label][y] for x in under), Decimal(0)) for y in years
         }
     return result
-
-
-def map_with_retry(
-    rows: list,
-    labels: list,
-    years: list[int] | None = None,
-    *,
-    check: Callable[[Mapped], list] | None = None,
-    max_attempts: int = 3,
-    ask: Callable[..., dict] | None = None,
-) -> Mapped:
-    """map_statement, re-prompting with identity violations until `check` passes.
-
-    `check(mapped)` returns a list of violations (empty = ok). If omitted it is
-    taken from ir3s.schemas (imported lazily); if that module or a checker is
-    missing, no retry happens and the first mapping is returned.
-    """
-    if check is None:
-        try:
-            from . import schemas  # sibling module, written concurrently
-        except ImportError:
-            schemas = None
-        # ponytail: checker name is a guess until schemas.py lands; pass check= to override.
-        check = next((getattr(schemas, n) for n in ("check_identities", "validate_identities", "validate")
-                      if schemas is not None and callable(getattr(schemas, n, None))), None)
-    feedback: list[str] | None = None
-    mapped: Mapped = {}
-    for _ in range(max(1, max_attempts)):
-        mapped = map_statement(rows, labels, years, feedback=feedback, ask=ask)
-        violations = check(mapped) if check else []
-        if not violations:
-            return mapped
-        feedback = [str(v) for v in violations]
-    return mapped
