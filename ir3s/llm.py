@@ -43,7 +43,7 @@ def chat(
     # Cutting it off mid-reasoning yields an empty reply, so the budget has to
     # be generous: a mapping of a whole statement reasons for about 35,000
     # tokens before it writes the JSON.
-    max_tokens: int = 65536,
+    max_tokens: int | None = None,
     client: httpx.Client | None = None,
 ) -> str:
     """Send one prompt, return the assistant text.
@@ -69,7 +69,8 @@ def chat(
         # The mapping reply is a short JSON object, but the provider reserves
         # the model's whole output allowance against the key's credit, so it
         # has to be capped explicitly.
-        "max_tokens": max_tokens,
+        "max_tokens": max_tokens if max_tokens is not None
+        else int(os.environ.get("IR3S_LLM_MAX_TOKENS", 65536)),
     }
     if json_mode:
         body["response_format"] = {"type": "json_object"}
@@ -103,8 +104,8 @@ def chat(
                 reason = resp.json().get("choices", [{}])[0].get("finish_reason", "")
                 if reason == "length":
                     raise LLMError(
-                        f"the model ran out of output budget ({max_tokens} tokens) "
-                        "before it answered; raise max_tokens"
+                        f"the model ran out of output budget ({body['max_tokens']} tokens) "
+                        "before it answered; raise IR3S_LLM_MAX_TOKENS"
                     )
                 last = f"the model returned an empty reply (finish_reason={reason})"
                 continue

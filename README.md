@@ -57,6 +57,13 @@ The four stages are `extractor.py`, `mapping.py`, `schemas.py` and
 The model is configured by environment variables: `IR3S_LLM_BASE_URL`,
 `IR3S_LLM_API_KEY`, `IR3S_LLM_MODEL`. Any OpenAI-compatible endpoint works.
 
+A mapping asks the model to decide what every printed line is, and a
+reasoning model thinks for a long time before it answers: about 35,000
+tokens per statement, measured. The output budget has to cover the thinking
+as well as the answer, so `IR3S_LLM_MAX_TOKENS` defaults to 65,536. A reply
+that runs out of budget is reported with the budget that was used rather
+than retried, because retrying the same request fails the same way.
+
 ## The model spec
 
 A spec says which canonical line goes in which template row, and is the only
