@@ -101,12 +101,24 @@ def chat(
                 # upstream failure. A model that ran out of budget
                 # mid-reasoning says so here, and retrying it unchanged
                 # would fail the same way, so that is reported instead.
-                reason = resp.json().get("choices", [{}])[0].get("finish_reason", "")
+                choice = resp.json().get("choices", [{}])[0]
+                reason = choice.get("finish_reason", "")
                 if reason == "length":
                     raise LLMError(
                         f"the model ran out of output budget ({body['max_tokens']} tokens) "
                         "before it answered; raise IR3S_LLM_MAX_TOKENS"
                     )
+                if reason == "tool_calls":
+                    # The model answered with a tool call instead of text,
+                    # which some upstreams do when the prompt is long. It
+                    # carries no answer, so it is asked again, this time
+                    # saying plainly that the answer is text.
+                    last = "the model answered with a tool call instead of text"
+                    body["messages"] = messages + [
+                        {"role": "user", "content": "Answer with the JSON object as text. "
+                         "Do not call any tool."}
+                    ]
+                    continue
                 last = f"the model returned an empty reply (finish_reason={reason})"
                 continue
             return content
