@@ -248,6 +248,36 @@ def test_a_label_that_wrapped_around_its_figure_is_one_account():
     assert "dengan pelangan" in revenue.label, revenue.label
 
 
+def test_the_cass_spec_covers_the_accounts_the_reader_produces():
+    """A spec must name accounts the reader can actually produce.
+
+    A spec that names an account the statement does not print would leave a
+    row empty without saying so.
+    """
+    from ir3s.extractor import extract_statements
+    from ir3s.schemas import load_spec
+
+    spec_path = Path(__file__).parents[1] / "specs" / "cass.yaml"
+    pdf = AUDIT / "cass" / "cass_fs_2023.pdf"
+    if not spec_path.exists() or not pdf.exists():
+        pytest.skip("CASS spec or fixture not present")
+
+    spec = load_spec(spec_path)
+    statements = extract_statements(str(pdf))
+    for kind in ("balance_sheet", "income_statement"):
+        printed = " ".join(row.label for row in statements[kind].rows).lower()
+        for line in spec.lines(kind):
+            if line.is_total and not line.share:
+                continue
+            # The first word of the Indonesian name must appear in the
+            # statement, or the row will never be filled.
+            words = line.description.split("/")[0].strip().split()
+            if not words:
+                continue
+            assert words[0].lower() in printed, \
+                f"{kind}: {line.label} names {words[0]!r}, which the statement does not print"
+
+
 def test_reader_handles_a_figure_layout_with_a_notes_column():
     """A statement whose figure columns outnumber its year columns.
 
