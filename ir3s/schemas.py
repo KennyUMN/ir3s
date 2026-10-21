@@ -43,6 +43,10 @@ LABELS: dict[str, str] = {
     "pretax": "income.pretax",
     "tax": "income.tax",
     "net_income": "income.net_income",
+    # A company that sold a business prints a profit for the year that
+    # differs from profit before tax less tax, because a discontinued
+    # operation is below the tax line.
+    "discontinued": "income.discontinued",
     "beginning_cash": "cash.beginning",
     "net_change": "cash.net_change",
     "ending_cash": "cash.ending",
@@ -296,11 +300,16 @@ def validate_model(
             expected = sum((sign * data[label][year] for sign, label in terms), Decimal(0))
             if abs(actual - expected) <= tolerance:
                 continue
-            # The alternatives, each as a list of (sign, label) terms.
+            # The alternatives, each as a list of (sign, label) terms. An
+            # optional term is added to each of them when it is present, so
+            # a company with a discontinued operation still balances.
+            optional_present = [(1, label) for label in optional_labels
+                                if year in data.get(label, {})]
             for expression in also:
                 alternative = _parse_expression(expression, resolve)
                 if alternative is None:
                     continue
+                alternative = alternative + optional_present
                 alternative_labels = [label for _, label in alternative]
                 absent = [label for label in alternative_labels
                           if year not in data.get(label, {})]
@@ -332,8 +341,14 @@ def validate_model(
     # sign belongs to the source, so the identity holds under either
     # convention: what it checks is that net income is pretax less the tax
     # charge, whichever way the tax line is signed.
+    # Tax may be printed negative (BCA, CASS, Superbank) or as a positive
+    # expense (Deltamas), and a benefit may be printed either way too. The
+    # sign belongs to the source, so the identity holds under either
+    # convention. A company with a discontinued operation also prints a net
+    # income that differs from pretax less tax, so that is an optional term.
     check("income_statement", "net_income == pretax - tax (either sign of tax)",
-          "net_income", [(1, "pretax"), (1, "tax")], also=("pretax - tax",))
+          "net_income", [(1, "pretax"), (1, "tax")], also=("pretax - tax",),
+          optional=("discontinued",))
     check("income_statement", "attributable_to_parent + non_controlling == net_income",
           "net_income", [(1, "attributable_to_parent"), (1, "non_controlling")])
     check("cash_flow", "ending_cash == beginning_cash + net_change (+ fx_effect)",

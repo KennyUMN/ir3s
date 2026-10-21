@@ -280,8 +280,17 @@ statements:
     - label: income.net_income
       section: income
       template_row: 80
+      share: true
       is_total: true
       description: Laba tahun berjalan / Profit for the year
+    # The discontinued operation sits below the tax line, so the profit for
+    # the year is the continuing profit less tax plus this. The template has
+    # no row for it, so it is not written; the identity needs it.
+    - label: income.discontinued
+      section: income
+      template_row: 80
+      share: true
+      description: Rugi tahun berjalan dari operasi yang dihentikan / Discontinued operations
     - label: income.attributable_to_parent
       section: income
       template_row: 83

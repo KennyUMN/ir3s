@@ -275,8 +275,6 @@ statements:
     - label: income.gross_profit
       section: income
       template_row: 71
-      is_total: true
-      derived: true
       description: LABA KOTOR / Gross profit
     - label: income.operating_expenses
       section: income
@@ -285,8 +283,6 @@ statements:
     - label: income.operating_profit
       section: income
       template_row: 73
-      is_total: true
-      derived: true
       description: LABA USAHA / Operating profit
     - label: income.finance_income
       section: income
@@ -303,8 +299,6 @@ statements:
     - label: income.pretax
       section: income
       template_row: 78
-      is_total: true
-      derived: true
       description: LABA SEBELUM PAJAK / Profit before tax
     - label: income.tax
       section: income

@@ -131,6 +131,11 @@ def map_statement(
     for c in canon:
         if not c.derived:
             continue
+        if c.label in assign:
+            # The PDF prints this total, and the model found it. Keep the
+            # PDF's value: a derived total is the sum of its leaves only
+            # when the PDF does not print it.
+            continue
         under = [x for x in canon if not x.is_total and _in_section(x, c.section)]
         result[c.label] = {
             y: sum((result[x.label][y] for x in under), Decimal(0)) for y in years
