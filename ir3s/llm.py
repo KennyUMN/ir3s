@@ -97,16 +97,58 @@ def chat(
 
 
 def chat_json(prompt: str, **kwargs) -> dict:
-    """`chat` in JSON mode, parsed. Tolerates a stray ```json fence."""
+    """`chat` in JSON mode, parsed. Tolerates a stray ```json fence.
+
+    A model that thinks out loud before answering puts prose in front of the
+    JSON, so the object is extracted from wherever it appears rather than
+    requiring the whole reply to be one.
+    """
     text = chat(prompt, json_mode=True, **kwargs).strip()
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
     try:
         data = json.loads(text)
-    except ValueError as exc:
-        # The tail matters more than the head: a reply cut short shows where.
-        raise LLMError(
-            f"model did not return valid JSON ({exc}); reply ended: ...{text[-200:]}"
-        ) from exc
+    except ValueError:
+        data = _extract_json(text)
+        if data is None:
+            # The tail matters more than the head: a reply cut short shows where.
+            raise LLMError(
+                f"model did not return valid JSON; reply ended: ...{text[-200:]}"
+            )
     if not isinstance(data, dict):
         raise LLMError(f"model returned JSON that is not an object: {text[:300]}")
     return data
+
+
+def _extract_json(text: str) -> dict | None:
+    """The first complete JSON object in a string that may contain prose."""
+    depth = 0
+    start = -1
+    in_string = False
+    escaped = False
+    for index, character in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            continue
+        if character == '"':
+            in_string = True
+        elif character == "{":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0 and start >= 0:
+                try:
+                    candidate = json.loads(text[start : index + 1])
+                except ValueError:
+                    start = -1
+                    continue
+                if isinstance(candidate, dict):
+                    return candidate
+                start = -1
+    return None

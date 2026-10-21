@@ -49,6 +49,14 @@ _TITLE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 # Zones on a statement page, measured on the BCA reports.
 LABEL_MAX_X = 340.0
 VALUE_MIN_X = 420.0
+# How far a figure column may sit from its year header and still be that
+# year's column. The gap between two year columns is about 70pt, and the
+# notes column between them is about 30pt from the nearer year, so this
+# separates them without catching a real column.
+BAND_TOLERANCE_PT = 45.0
+# How wide the notes reference column is, either side of the header's notes
+# token. A note reference is a short token, so this only has to exclude it.
+NOTES_COLUMN_PT = 30.0
 NOTES_TOKEN = "Notes"
 # A statement names itself in the top band of the page, above the figures.
 HEADER_BAND_Y = 120.0
@@ -180,7 +188,7 @@ def parse_year(token: str) -> int | None:
     return int(text[:4])
 
 
-def _cluster_lines(words: list[tuple], tolerance: float = 2.5) -> list[list[tuple]]:
+def _cluster_lines(words: list[tuple], tolerance: float = 3.5) -> list[list[tuple]]:
     """Group words into visual lines by vertical position."""
     lines: list[dict] = []
     for word in sorted(words, key=lambda w: (w[1], w[0])):
@@ -248,11 +256,14 @@ def _column_clusters(lines: list[list[tuple]], header_index: int) -> list[tuple[
     """Cluster the value figures by right edge, below the header row.
 
     Figures are right-aligned, so the right edge is the stable coordinate.
+    Every numeric token below the header is a candidate: a figure column is
+    found by where the numbers line up, not by where a constant says they
+    might be. A statement from another company puts its figures elsewhere.
     """
     buckets: dict[int, list[tuple]] = {}
     for line in lines[header_index + 1 :]:
         for word in line:
-            if word[0] >= VALUE_MIN_X and _is_numeric(word[4]):
+            if _is_numeric(word[4]):
                 buckets.setdefault(round(word[2] / 4.0), []).append(word)
     clusters: list[list[tuple]] = []
     for _, words in sorted(buckets.items()):
@@ -265,6 +276,85 @@ def _column_clusters(lines: list[list[tuple]], header_index: int) -> list[tuple[
                 continue
         clusters.append(list(words))
     return [(sum(w[2] for w in words) / len(words), words) for words in clusters]
+
+
+def _figure_bands(
+    lines: list[list[tuple]], header_index: int, years: list[int]
+) -> list[tuple[float, list[tuple]]]:
+    """The bands that hold the figures, one per year, in header order.
+
+    A statement prints a notes column between the two years, and that column
+    holds numbers too, so the bands are paired with the header years by
+    position rather than by count. A band that is not near a year token is
+    the notes column, or a stray digit, and is dropped.
+    """
+    if not years:
+        return []
+    header = lines[header_index]
+    year_positions = []
+    for word in header:
+        year = parse_year(word[4].strip())
+        if year is not None:
+            year_positions.append((word[0], word[2], year))
+    if not year_positions:
+        return []
+    centres = {year: (left + right) / 2 for left, right, year in year_positions}
+
+    bands = _column_clusters(lines, header_index)
+    chosen: dict[int, tuple[float, list[tuple]]] = {}
+    for centre, words in bands:
+        nearest = min(centres.items(), key=lambda item: abs(item[1] - centre))
+        year, year_centre = nearest
+        if abs(year_centre - centre) > BAND_TOLERANCE_PT:
+            # Not near a year header: a notes column, or a stray number.
+            continue
+        if year in chosen:
+            # Two bands claim the same year: keep the one with more figures.
+            if len(words) > len(chosen[year][1]):
+                chosen[year] = (centre, words)
+            continue
+        chosen[year] = (centre, words)
+
+    return [chosen[year] for year in years if year in chosen]
+
+
+def _is_label_position(
+    word: tuple, bands: list[tuple[float, list[tuple]]], notes_x: float | None
+) -> bool:
+    """True when a word is part of the account name rather than a note.
+
+    A statement prints the account name, then a notes reference, then the
+    figures. The notes reference sits under the header's notes token, so it
+    is excluded by position. In a bilingual statement the translated account
+    name is on the right of the figures, and that is a label too.
+    """
+    if not bands:
+        return word[2] < LABEL_MAX_X
+    first = min(centre for centre, _ in bands)
+    last = max(centre for centre, _ in bands)
+    if notes_x is not None and abs(word[0] - notes_x) < NOTES_COLUMN_PT:
+        # The notes reference column, under the header's notes token.
+        return False
+    if notes_x is None and word[0] < first and _is_numeric(word[4]):
+        # No notes token in the header, but a number sits between the account
+        # name and the figures: it is a note reference, not part of the name.
+        return False
+    if word[0] < first:
+        return True
+    # Past the last figure column: the translated account name.
+    return word[0] > last - BAND_TOLERANCE_PT
+
+
+def _in_any_band(word: tuple, bands: list[tuple[float, list[tuple]]]) -> bool:
+    """True when a word's right edge falls inside one of the figure bands.
+
+    A band is a column of right-aligned figures, so a token belongs to it
+    when its right edge is near the band's centre.
+    """
+    for centre, _ in bands:
+        if abs(word[2] - centre) <= BAND_TOLERANCE_PT:
+            return True
+    return False
 
 
 def read_page(
@@ -294,21 +384,11 @@ def read_page(
     if header_index is None:
         return [], []
 
-    clusters = _column_clusters(lines, header_index)
-    if len(clusters) != len(years):
-        # Pair each header year with the cluster whose figures sit nearest to it.
-        pairs: list[tuple[float, list[tuple]]] = []
-        remaining = list(clusters)
-        for word in sorted(
-            (w for w in lines[header_index] if parse_year(w[4].strip())),
-            key=lambda w: w[0],
-        ):
-            if not remaining:
-                break
-            best = min(remaining, key=lambda c: abs(c[0] - word[0]))
-            remaining.remove(best)
-            pairs.append(best)
-        clusters = pairs
+    clusters = _figure_bands(lines, header_index, years)
+    notes_x = next(
+        (word[0] for word in lines[header_index] if word[4].strip().startswith(NOTES_TOKEN)),
+        None,
+    )
 
     bold_y = _bold_lines(page)
     rows: list[Row] = []
@@ -320,10 +400,10 @@ def read_page(
         figures: list[tuple] = []
         for word in line:
             text = word[4].strip()
-            if word[0] >= VALUE_MIN_X and _is_numeric(text):
+            if _is_numeric(text) and _in_any_band(word, clusters):
                 figures.append(word)
                 continue
-            if word[2] < LABEL_MAX_X:
+            if _is_label_position(word, clusters, notes_x):
                 label_parts.append(text)
             else:
                 note_parts.append(text)

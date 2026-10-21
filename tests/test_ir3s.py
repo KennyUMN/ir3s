@@ -17,6 +17,9 @@ from ir3s.schemas import Model, load_spec, validate_model
 FIXTURES = Path(__file__).parent / "fixtures"
 PDF = FIXTURES / "bca_fs_2025.pdf"
 SPEC = Path(__file__).parents[1] / "specs" / "bbca.yaml"
+# Real statements from the other sectors, so the reader is tested on more than
+# the one layout it was built on.
+AUDIT = Path("/Users/kennyvws/.hermes/cache/scratch/audit")
 
 
 @pytest.mark.skipif(not PDF.exists(), reason="PDF fixture not present")
@@ -111,6 +114,57 @@ def _synthetic_bilingual_page(path: Path) -> None:
     document.close()
 
 
+def test_reads_a_statement_from_each_sector_and_they_balance():
+    """One real statement per sector, each balancing on its own arithmetic.
+
+    The reader was tuned on one bank, and the only fixture was that bank. A
+    services company, a property developer and another bank all put their
+    figures somewhere else on the page, and all of them balance.
+    """
+    from ir3s.extractor import extract_statements
+
+    cases = [
+        # company, pdf, assets label, liabilities label, equity label, extra label
+        ("BCA", Path("/Users/kennyvws/projects/ir3s/tests/fixtures/bca_fs_2025.pdf"),
+         "TOTAL ASSETS", "TOTAL LIABILITIES", "TOTAL EQUITY",
+         "TEMPORARY SYIRKAH DEPOSITS"),
+        ("CASS", AUDIT / "cass" / "cass_fs_2023.pdf",
+         "TOTAL ASET TOTAL ASSETS", "TOTAL LIABILITAS TOTAL LIABILITIES",
+         "TOTAL EKUITAS TOTAL EQUITY", None),
+        ("DMAS", AUDIT / "deltamas" / "dmas_fs_fy2024.pdf",
+         "JUMLAH ASET TOTAL ASSETS", "JUMLAH LIABILITAS TOTAL LIABILITIES",
+         "JUMLAH EKUITAS TOTAL EQUITY", None),
+        ("SBNR", AUDIT / "superbank" / "sbnr_audited_3.pdf",
+         "JUMLAH ASET TOTAL ASSETS", "JUMLAH LIABILITAS TOTAL LIABILITIES",
+         "JUMLAH EKUITAS TOTAL EQUITY", None),
+    ]
+    for name, pdf, assets, liabilities, equity, extra in cases:
+        if not pdf.exists():
+            pytest.skip(f"{name} fixture not present")
+        balance = extract_statements(str(pdf))["balance_sheet"]
+        assert balance.rows, f"{name}: no rows read"
+
+        def find(label: str | None, year: int):
+            if label is None:
+                return None
+            for row in balance.rows:
+                if row.label.strip().upper() == label.upper():
+                    return row.value_for(year)
+            return None
+
+        for year in balance.years:
+            total_assets = find(assets, year)
+            total_liabilities = find(liabilities, year)
+            total_equity = find(equity, year)
+            assert None not in (total_assets, total_liabilities, total_equity), \
+                f"{name} {year}: a total was not read"
+            # A bank may report temporary shariah funds between liabilities and
+            # equity, which are neither of the two.
+            between = find(extra, year) or Decimal(0)
+            assert total_assets == total_liabilities + total_equity + between, \
+                f"{name} {year}: assets != liabilities + equity"
+
+
 def test_reader_handles_a_figure_layout_with_a_notes_column():
     """A statement whose figure columns outnumber its year columns.
 
@@ -119,20 +173,25 @@ def test_reader_handles_a_figure_layout_with_a_notes_column():
     number of years. The reader used to raise TypeError here, on every
     Indonesian statement except the one it was tuned on.
 
-    It now reports that the layout is unsupported rather than crashing on a
-    float, and rather than returning an empty result that would read like a
-    document with no statements.
+    It now finds the figure columns from the data, so it reads the statement.
     """
-    import pymupdf
-
-    from ir3s.extractor import ExtractionError, extract_statements
+    from ir3s.extractor import extract_statements
 
     pdf = Path(__file__).parent / "_synthetic.pdf"
     _synthetic_bilingual_page(pdf)
     try:
-        with pytest.raises(ExtractionError) as failure:
-            extract_statements(str(pdf))
-        assert "not supported" in str(failure.value)
+        statements = extract_statements(str(pdf))
+        balance = statements["balance_sheet"]
+        assert balance.years == [2022, 2023]
+        labels = " ".join(row.label for row in balance.rows)
+        # The figures sit in the middle of the page, in the middle of the row,
+        # and the notes column holds a number too. None of that may leak into
+        # the account name.
+        assert "Kas" in labels
+        assert "4,29" not in labels, "the notes reference became part of a label"
+        cash = next(row for row in balance.rows if "Kas" in row.label)
+        assert cash.value_for(2023) == Decimal("453153")
+        assert cash.value_for(2022) == Decimal("351786")
     finally:
         pdf.unlink(missing_ok=True)
 
