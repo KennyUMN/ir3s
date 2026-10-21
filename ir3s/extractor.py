@@ -309,21 +309,27 @@ def _figure_bands(
     centres = {year: (left + right) / 2 for left, right, year in year_positions}
 
     bands = _column_clusters(lines, header_index)
-    chosen: dict[int, tuple[float, list[tuple]]] = {}
+    # A column's figures do not always right-align to the same place: a wide
+    # number can sit further left than a narrow one. The bands that belong to
+    # the same year are merged, and the merged band is centred on where its
+    # figures actually are, which is what the figures are read against.
+    merged: dict[int, list[tuple]] = {}
     for centre, words in bands:
         nearest = min(centres.items(), key=lambda item: abs(item[1] - centre))
         year, year_centre = nearest
         if abs(year_centre - centre) > BAND_TOLERANCE_PT:
             # Not near a year header: a notes column, or a stray number.
             continue
-        if year in chosen:
-            # Two bands claim the same year: keep the one with more figures.
-            if len(words) > len(chosen[year][1]):
-                chosen[year] = (centre, words)
-            continue
-        chosen[year] = (centre, words)
+        merged.setdefault(year, []).extend(words)
 
-    return [chosen[year] for year in years if year in chosen]
+    result = []
+    for year in years:
+        words = merged.get(year)
+        if not words:
+            continue
+        centre = sum(word[2] for word in words) / len(words)
+        result.append((centre, words))
+    return result
 
 
 def _is_indented_under(first_x: float, parent_x: float) -> bool:
