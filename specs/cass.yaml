@@ -376,7 +376,7 @@ statements:
       section: cash
       template_row: 143
       check_only: true
-      description: Saldo Kas dan Setara Kas Pada Awal Tahun / Cash at the beginning
+      description: Saldo Kas dan Setara Kas Pada Awal Tahun / Kas dan setara kas pada awal tahun / Cash at the beginning
     - label: cash.fx_effect
       is_other: false
       section: cash
@@ -389,28 +389,28 @@ statements:
       section: cash
       template_row: 144
       check_only: true
-      description: Saldo Kas dan Setara Kas Pada Akhir Tahun / Cash at the end
+      description: Saldo Kas dan Setara Kas Pada Akhir Tahun / Kas dan setara kas pada akhir tahun / Cash at the end
     - label: cash.operating
       is_other: false
       section: cash
       template_row: 112
       check_only: true
-      description: Arus Kas Neto dari Aktivitas Operasi / Net cash from operating
+      description: Arus Kas Neto dari Aktivitas Operasi / Kas bersih diperoleh dari aktivitas operasi / Net cash from operating activities
     - label: cash.investing
       is_other: false
       section: cash
       template_row: 121
       check_only: true
-      description: Arus Kas Neto dari Aktivitas Investasi / Net cash from investing
+      description: Arus Kas Neto dari Aktivitas Investasi / Kas bersih (digunakan untuk) aktivitas investasi / Net cash from investing activities
     - label: cash.financing
       is_other: false
       section: cash
       template_row: 141
       check_only: true
-      description: Arus Kas Neto dari Aktivitas Pendanaan / Net cash from financing
+      description: Arus Kas Neto dari Aktivitas Pendanaan / Kas bersih diperoleh dari aktivitas pendanaan / Net cash from financing activities
     - label: cash.net_change
       is_other: false
       section: cash
       template_row: 142
       check_only: true
-      description: Kenaikan (Penurunan) Neto Kas / Net change in cash
+      description: Kenaikan (Penurunan) Neto Kas / Kenaikan/(penurunan) dalam kas dan setara kas / Net change in cash

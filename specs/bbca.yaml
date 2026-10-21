@@ -443,44 +443,44 @@ statements:
       section: cash
       template_row: 112
       check_only: true
-      description: Net cash from operating activities
+      description: Arus Kas Neto dari Aktivitas Operasi / Kas bersih diperoleh dari aktivitas operasi / Net cash from operating activities
     - label: cash.investing
       is_other: false
       section: cash
       template_row: 121
       check_only: true
-      description: Net cash from investing activities
+      description: Arus Kas Neto dari Aktivitas Investasi / Kas bersih (digunakan untuk) aktivitas investasi / Net cash from investing activities
     - label: cash.financing
       is_other: false
       section: cash
       template_row: 141
       check_only: true
-      description: Net cash from financing activities
+      description: Arus Kas Neto dari Aktivitas Pendanaan / Kas bersih diperoleh dari aktivitas pendanaan / Net cash from financing activities
     - label: cash.net_change
       is_other: false
       section: cash
       template_row: 142
       check_only: true
-      description: Net change in cash and cash equivalents
+      description: Kenaikan (Penurunan) Neto Kas / Kenaikan/(penurunan) dalam kas dan setara kas / Net change in cash
     - label: cash.beginning
       is_other: false
       section: cash
       template_row: 143
       check_only: true
-      description: Cash and cash equivalents at beginning of year
+      description: Saldo Kas dan Setara Kas Pada Awal Tahun / Kas dan setara kas pada awal tahun / Cash at the beginning
     - label: cash.fx_effect
       is_other: false
       section: cash
       template_row: 143
       check_only: true
-      description: Effect of foreign exchange rate changes on cash
+      description: Pengaruh perubahan kurs mata uang asing / Effect of exchange rate changes
     - label: cash.ending
       is_other: false
       section: cash
       template_row: 144
       is_total: true
       check_only: true
-      description: Cash and cash equivalents at end of year
+      description: Saldo Kas dan Setara Kas Pada Akhir Tahun / Kas dan setara kas pada akhir tahun / Cash at the end
     - label: cash.other
       is_other: false
       section: cash
