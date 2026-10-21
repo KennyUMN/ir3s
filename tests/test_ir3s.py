@@ -229,6 +229,25 @@ def test_a_note_reference_is_not_read_as_a_figure():
             f"a notes reference became an account: {row.label!r}"
 
 
+def test_a_label_that_wrapped_around_its_figure_is_one_account():
+    """A statement may print an account name split by its own figure.
+
+    CASS prints "Pendapatan dari kontrak" on one line and "dengan pelangan"
+    with the figure on the next. The two halves are one account, and the
+    reader used to report only the second half.
+    """
+    from ir3s.extractor import extract_statements
+
+    pdf = AUDIT / "cass" / "cass_fs_2023.pdf"
+    if not pdf.exists():
+        pytest.skip("CASS fixture not present")
+    income = extract_statements(str(pdf))["income_statement"]
+    revenue = next((row for row in income.rows if row.value_for(2023) == 2199217), None)
+    assert revenue is not None, "the revenue line was not read"
+    assert "Pendapatan dari kontrak" in revenue.label, revenue.label
+    assert "dengan pelangan" in revenue.label, revenue.label
+
+
 def test_reader_handles_a_figure_layout_with_a_notes_column():
     """A statement whose figure columns outnumber its year columns.
 

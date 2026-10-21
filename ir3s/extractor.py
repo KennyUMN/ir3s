@@ -507,10 +507,11 @@ def read_page(
     pending: list[str] = []
     parent = ""
     section = ""
-    for line in lines[header_index + 1 :]:
+    for position, line in enumerate(lines[header_index + 1 :]):
         label_parts: list[str] = []
         note_parts: list[str] = []
         figures: list[tuple] = []
+        note_reference = ""
         for word in line:
             text = word[4].strip()
             if _is_numeric(text) and _in_any_band(word, clusters):
@@ -519,6 +520,7 @@ def read_page(
                     # sits close enough to the first figure column to fall
                     # inside its band.
                     note_parts.append(text)
+                    note_reference = note_reference or text
                     continue
                 figures.append(word)
                 continue
@@ -532,22 +534,38 @@ def read_page(
         is_bold = any(round(line[0][1]) == y for y in bold_y)
         if not figures:
             if label:
-                if is_bold:
-                    # A bold line with no figures is a section heading
-                    # ("ASSETS", "LIABILITIES"). It names the section, it is not
-                    # part of the next line's label.
+                # What follows a line with no figures of its own decides what
+                # this line is. A statement prints three kinds:
+                #
+                #   a section heading: "ASET ASSETS", and the next line is
+                #     at the same indent;
+                #   an account whose figures are on the next line: "Piutang
+                #     usaha  3,5,29" then "Pihak berelasi  391", and the next
+                #     line is indented;
+                #   a label that wrapped around its own figure: "Pendapatan
+                #     dari kontrak" then "dengan pelangan  2.199.217", also
+                #     indented but carrying no note reference of its own.
+                #
+                # Bold does not tell them apart: a whole income statement can
+                # be printed in a bold face.
+                following = lines[header_index + 2 + position] if header_index + 2 + position < len(lines) else []
+                next_x = min((word[0] for word in following), default=0.0)
+                indented = bool(following) and next_x > word_first_x + 2.0
+                if not indented:
+                    # A section heading: it names the section, it is not part
+                    # of the next line's label.
                     section = label
                     pending = []
                     parent = ""
                     parent_x = 0.0
-                else:
-                    # A plain line with no figures heads a group whose
-                    # members follow on the next lines, each with its own
-                    # figures: "Piutang usaha" then "Pihak berelasi" and
-                    # "Pihak ketiga". The members need the group's name.
+                elif note_reference:
+                    # An account whose members follow on the next lines.
                     parent = " ".join(pending + [label]).strip()
                     parent_x = word_first_x
                     pending = []
+                else:
+                    # A label that wrapped around its own figure.
+                    pending.append(label)
             continue
 
         # A member of a group carries the group's name, so the model can
