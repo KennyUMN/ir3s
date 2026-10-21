@@ -97,9 +97,15 @@ def chat(
                 raise LLMError(f"unexpected response shape: {resp.text[:300]}") from exc
             if not content or not content.strip():
                 # An empty reply is a truncated generation or a transient
-                # upstream failure, so it is retried like one. A model that
-                # ran out of budget mid-reasoning says so here.
+                # upstream failure. A model that ran out of budget
+                # mid-reasoning says so here, and retrying it unchanged
+                # would fail the same way, so that is reported instead.
                 reason = resp.json().get("choices", [{}])[0].get("finish_reason", "")
+                if reason == "length":
+                    raise LLMError(
+                        f"the model ran out of output budget ({max_tokens} tokens) "
+                        "before it answered; raise max_tokens"
+                    )
                 last = f"the model returned an empty reply (finish_reason={reason})"
                 continue
             return content
@@ -116,6 +122,7 @@ def chat_json(prompt: str, **kwargs) -> dict:
     JSON, so the object is extracted from wherever it appears rather than
     requiring the whole reply to be one.
     """
+    kwargs.pop("json_mode", None)
     text = chat(prompt, json_mode=True, **kwargs).strip()
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
     try:
