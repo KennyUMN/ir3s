@@ -124,10 +124,12 @@ def map_statement(
     result: Mapped = {c.label: (_sum_rows(rows, assign[c.label], years) if c.label in assign else dict(zero))
                       for c in canon}
 
-    # A total the PDF does not print (a bank has no "Total current assets")
-    # is the sum of its section's leaves.
+    # A derived total is always the sum of its section's leaves, even when
+    # the PDF prints a total of its own: the leaves land in the template's
+    # rows, and the template recomputes its totals from them, so a total read
+    # from the PDF would not match what the template shows.
     for c in canon:
-        if not c.derived or c.label in assign:
+        if not c.derived:
             continue
         under = [x for x in canon if not x.is_total and _in_section(x, c.section)]
         result[c.label] = {

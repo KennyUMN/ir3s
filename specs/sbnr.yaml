@@ -1,0 +1,239 @@
+# Model spec for PT Super Bank Indonesia (SBNR.JK), a digital bank.
+#
+# A bank presents ONE undifferentiated asset and liability list: there is no
+# current / non-current split, because a bank's balance sheet is not divided
+# that way. The template the user fills DOES have both sections, so this spec
+# puts the bank's accounts into the section that suits each one and says so.
+# Which section an account lands in is a modelling decision, not a fact from
+# the PDF, and the template's own totals then follow from it.
+#
+# Two accounts are worth calling out:
+#
+#   "Kas", "Giro pada Bank Indonesia", "Giro pada bank-bank lain" and
+#   "Penempatan pada Bank Indonesia" are all cash and cash equivalents in
+#   substance. The template has one row for them (row 8), so they share it.
+#
+#   "Kredit yang diberikan" is reported gross, with "Dikurangi: Cadangan
+#   kerugian penurunan nilai" (the impairment allowance) below it and
+#   "Jumlah kredit yang diberikan - bersih" (the net figure) as the total.
+#   The template's row 9 is one receivables row, so the net figure is what
+#   belongs there: the gross figure and the allowance are two sides of one
+#   number. The spec therefore takes the NET line, and the allowance is not
+#   written, so the row holds the amount the balance sheet actually carries.
+#
+# Units: millions of Rupiah, the same as the template's columns.
+
+company: PT Super Bank Indonesia
+unit: millions of Rupiah
+sheet: 3 Statements
+
+header_rows:
+  balance_sheet: 5
+  income_statement: 68
+  cash_flow: 91
+
+check_rows:
+  balance: 64
+  cash: 145
+
+sections:
+  assets:
+    total: assets.total
+  liabilities:
+    total: liabilities.total
+  equity:
+    total: equity.total
+  income:
+    total: income.net_income
+  cash:
+    total: cash.ending
+
+statements:
+  balance_sheet:
+    # --- assets -----------------------------------------------------------
+    # A bank's cash and its placements with other banks are cash and cash
+    # equivalents, so they share the template's one row for it.
+    - label: assets.cash_and_equivalents
+      section: assets
+      template_row: 8
+      share: true
+      description: Kas / Cash
+    - label: assets.central_bank_balances
+      section: assets
+      template_row: 8
+      share: true
+      description: Giro pada Bank Indonesia / Current accounts with Bank Indonesia
+    - label: assets.other_bank_balances
+      section: assets
+      template_row: 8
+      share: true
+      description: Giro pada bank-bank lain / Current accounts with other banks
+    - label: assets.securities
+      section: assets
+      template_row: 24
+      share: true
+      description: Efek-efek - bersih / Securities, net
+    - label: assets.receivables
+      section: assets
+      template_row: 9
+      description: Jumlah kredit yang diberikan - bersih / Total loans receivable, net
+    - label: assets.fixed_assets
+      section: assets
+      template_row: 22
+      description: Aset tetap - bersih / Fixed assets, net
+    - label: assets.intangibles
+      section: assets
+      template_row: 24
+      share: true
+      description: Aset takberwujud - bersih / Intangible assets, net
+    - label: assets.deferred_tax
+      section: assets
+      template_row: 21
+      description: Aset pajak tangguhan / Deferred tax assets
+    - label: assets.other_non_current
+      section: assets
+      template_row: 25
+      description: Aset lain-lain / Other assets
+    - label: assets.total
+      section: assets
+      template_row: 27
+      is_total: true
+      description: JUMLAH ASET / Total assets
+    # --- liabilities -------------------------------------------------------
+    - label: liabilities.due_immediately
+      section: liabilities
+      template_row: 35
+      description: Liabilitas segera / Liabilities due immediately
+    - label: liabilities.deposits_from_customers
+      section: liabilities
+      template_row: 36
+      description: Jumlah simpanan nasabah / Total deposits from customers
+    - label: liabilities.accrued_expenses
+      section: liabilities
+      template_row: 34
+      description: Beban masih harus dibayar / Accrued expenses
+    - label: liabilities.other_payables
+      section: liabilities
+      template_row: 32
+      description: Liabilitas lain-lain / Other liabilities
+    - label: liabilities.employee_benefits
+      section: liabilities
+      template_row: 38
+      description: Liabilitas imbalan pascakerja / Post-employment benefits
+    - label: liabilities.total
+      section: liabilities
+      template_row: 51
+      is_total: true
+      description: JUMLAH LIABILITAS / Total liabilities
+    # --- equity -----------------------------------------------------------
+    - label: equity.share_capital
+      section: equity
+      template_row: 53
+      description: Modal saham / Share capital
+    - label: equity.paid_in_capital
+      section: equity
+      template_row: 54
+      description: Agio saham / Paid-in capital
+    - label: equity.other_reserves
+      section: equity
+      template_row: 55
+      description: Cadangan nilai wajar / Fair value reserve
+    - label: equity.retained_appropriated
+      section: equity
+      template_row: 58
+      description: Saldo laba - Telah ditentukan penggunaannya
+    - label: equity.retained_unappropriated
+      section: equity
+      template_row: 59
+      description: Saldo laba - Belum ditentukan penggunaannya / Unappropriated
+    - label: equity.total
+      section: equity
+      template_row: 62
+      is_total: true
+      description: JUMLAH EKUITAS / Total equity
+    - label: equity.grand_total
+      section: equity
+      template_row: 63
+      is_total: true
+      description: JUMLAH LIABILITAS DAN EKUITAS / Total liabilities and equity
+
+  income_statement:
+    # A bank's income statement has no revenues or cost of revenues: it has
+    # interest income, interest expense, and the net of the two. The template
+    # rows 69 and 70 are formulas pointing at the 'Financial Modelling' tab, so
+    # they are not written, and the net interest income goes to row 76, the
+    # template's "other operating income" row, which is a literal.
+    - label: income.net_interest_income
+      section: income
+      template_row: 76
+      share: true
+      description: Pendapatan bunga bersih / Net interest income
+    - label: income.other_operating_income
+      section: income
+      template_row: 76
+      share: true
+      description: Jumlah pendapatan operasional / Total operating income
+    - label: income.operating_expenses
+      section: income
+      template_row: 72
+      description: Jumlah beban operasional / Total operating expenses
+    - label: income.pretax
+      section: income
+      template_row: 78
+      is_total: true
+      derived: true
+      description: Laba atau Rugi Sebelum Pajak / Profit or loss before tax
+    - label: income.tax
+      section: income
+      template_row: 79
+      description: Benefits of income tax
+    - label: income.net_income
+      section: income
+      template_row: 80
+      is_total: true
+      description: Laba atau Rugi Bersih / Net profit or loss
+    - label: income.total
+      section: income
+      template_row: 86
+      is_total: true
+      derived: true
+      description: Net profit attributable, total
+
+  cash_flow:
+    - label: cash.operating
+      section: cash
+      template_row: 112
+      check_only: true
+      description: Arus Kas Neto dari Aktivitas Operasi
+    - label: cash.investing
+      section: cash
+      template_row: 121
+      check_only: true
+      description: Arus Kas Neto dari Aktivitas Investasi
+    - label: cash.financing
+      section: cash
+      template_row: 141
+      check_only: true
+      description: Arus Kas Neto dari Aktivitas Pendanaan
+    - label: cash.net_change
+      section: cash
+      template_row: 142
+      check_only: true
+      description: Kenaikan (Penurunan) Neto Kas / Net change in cash
+    - label: cash.beginning
+      section: cash
+      template_row: 143
+      share: true
+      check_only: true
+      description: Saldo Kas dan Setara Kas Pada Awal Tahun / Cash at the beginning
+    - label: cash.fx_effect
+      section: cash
+      template_row: 143
+      check_only: true
+      share: true
+      description: Pengaruh perubahan kurs mata uang asing
+    - label: cash.ending
+      section: cash
+      template_row: 144
+      check_only: true
+      description: Saldo Kas dan Setara Kas Pada Akhir Tahun / Cash at the end
