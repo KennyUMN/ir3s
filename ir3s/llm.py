@@ -39,8 +39,11 @@ def chat(
     # A mapping of a whole statement asks for a lot of thinking, and a
     # reasoning model may take a few minutes over it.
     timeout: float = 240.0,
-    # A mapping of a whole statement is a few thousand tokens of JSON.
-    max_tokens: int = 16384,
+    # A reasoning model spends most of its budget thinking before it answers.
+    # Cutting it off mid-reasoning yields an empty reply, so the budget has to
+    # be generous: a mapping of a whole statement reasons for about 35,000
+    # tokens before it writes the JSON.
+    max_tokens: int = 65536,
     client: httpx.Client | None = None,
 ) -> str:
     """Send one prompt, return the assistant text.
@@ -93,9 +96,11 @@ def chat(
             except (ValueError, KeyError, IndexError, TypeError) as exc:
                 raise LLMError(f"unexpected response shape: {resp.text[:300]}") from exc
             if not content or not content.strip():
-                # An empty reply is a transient upstream failure, so it is
-                # retried like one.
-                last = "the model returned an empty reply"
+                # An empty reply is a truncated generation or a transient
+                # upstream failure, so it is retried like one. A model that
+                # ran out of budget mid-reasoning says so here.
+                reason = resp.json().get("choices", [{}])[0].get("finish_reason", "")
+                last = f"the model returned an empty reply (finish_reason={reason})"
                 continue
             return content
     finally:

@@ -43,20 +43,6 @@ Consequences:
 ```python
 StatementKind = Literal["balance_sheet", "income_statement", "cash_flow"]
 
-class LineItem(BaseModel):
-    label: str
-    source_label: str
-    values: dict[int, Decimal]
-    is_total: bool
-    level: int
-
-class Statement(BaseModel):
-    kind: StatementKind
-    company: str
-    unit: str
-    years: list[int]
-    items: list[LineItem]
-
 class Model(BaseModel):
     company: str
     unit: str
@@ -65,6 +51,11 @@ class Model(BaseModel):
     income_statement: dict[str, dict[int, Decimal]]
     cash_flow: dict[str, dict[int, Decimal]]
 ```
+
+The rows a statement is read into are `extractor.Row`: a printed label, its
+figures tagged with the year they belong to, the section they sit under, and
+whether the line is a subtotal. The model is the mapped form of those rows:
+one entry per canonical line, each a year -> figure mapping.
 
 Decimals, not floats. Money does not round-trip through binary floating point.
 
