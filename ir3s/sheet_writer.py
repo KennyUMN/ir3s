@@ -167,11 +167,10 @@ def write_values(
                     report.skipped.append(f"{label} {year} is not in the template; skipped")
                 continue
             cell = sheet.cell(row=row_number, column=column)
-            if isinstance(cell.value, str) and cell.value.startswith("=") and not force:
-                # A formula that only carries the previous column forward
-                # (=G36) is a value the owner can replace. A formula that
-                # computes something (=sum(H8:H15)) is not.
+            if isinstance(cell.value, str) and cell.value.startswith("="):
                 if _is_forward_link(cell.value):
+                    # A formula that only carries the previous column forward
+                    # (=G36) is a value the owner may replace.
                     if not force:
                         report.skipped.append(
                             f"{label} {year} ({cell.coordinate}) carries the previous column "
@@ -179,6 +178,9 @@ def write_values(
                         )
                         continue
                 else:
+                    # A formula that computes something (=sum(H8:H15)) is a
+                    # total. Replacing it with a constant would break the
+                    # template's own check rows, so --force does not allow it.
                     report.skipped.append(
                         f"{label} {year} ({cell.coordinate}) holds a formula; skipped"
                     )

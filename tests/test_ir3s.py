@@ -137,6 +137,33 @@ def test_reader_handles_a_figure_layout_with_a_notes_column():
         pdf.unlink(missing_ok=True)
 
 
+def test_force_does_not_replace_a_computed_formula():
+    """--force may replace a forward link, never a computed total.
+
+    Replacing =sum(H8:H15) with a constant would break the template's own
+    check rows, which read that total.
+    """
+    import shutil
+
+    from ir3s.sheet_writer import open_template, write_values
+
+    source = Path("/Users/kennyvws/.hermes/cache/scratch/fsm/template.xlsx")
+    if not source.exists():
+        pytest.skip("template not present")
+    copy = Path(__file__).parent / "_force_test.xlsx"
+    shutil.copyfile(source, copy)
+    try:
+        template = open_template(copy)
+        # Row 16 is "Total Current Assets" = =sum(H8:H15): a computed total.
+        report = write_values(template, "3 Statements", 5, {16: {2024: Decimal(999)}},
+                              force=True, label_for_row={16: "Total Current Assets"})
+        assert not report.written, "a computed total was overwritten"
+        assert any("holds a formula" in note for note in report.skipped)
+        assert template.sheet("3 Statements").cell(row=16, column=8).value == "=sum(H8:H15)"
+    finally:
+        copy.unlink(missing_ok=True)
+
+
 def test_number_formats_do_not_confuse_a_thousands_group_with_a_decimal():
     """'1,234' is a thousands group; '1,23' is a decimal."""
     assert parse_number("1,234") == Decimal("1234")
