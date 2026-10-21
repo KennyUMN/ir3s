@@ -282,6 +282,37 @@ def test_unit_is_read_off_the_statement_header():
     assert unit_scale("Rupiah") == Decimal(1)
 
 
+def test_tax_identity_holds_under_either_sign_convention():
+    """A company may print its tax as a negative or as a positive expense.
+
+    BCA, CASS and Superbank print the tax charge negative, so net income is
+    pretax plus tax. Deltamas prints it positive, so net income is pretax
+    less tax. The sign belongs to the source, so the identity holds either
+    way, and a wrong figure is still caught.
+    """
+    from ir3s.schemas import Model, validate_model
+
+    def model_with(tax: Decimal) -> Model:
+        return Model(
+            company="X",
+            unit="millions",
+            years=[2024],
+            income_statement={
+                "income.pretax": {2024: Decimal(100)},
+                "income.tax": {2024: tax},
+                "income.net_income": {2024: Decimal(70)},
+            },
+        )
+
+    # Tax printed negative: net = pretax + tax.
+    assert validate_model(model_with(Decimal(-30))).ok
+    # Tax printed positive: net = pretax - tax.
+    assert validate_model(model_with(Decimal(30))).ok
+    # A tax figure that is simply wrong is still caught.
+    assert not validate_model(model_with(Decimal(-25))).ok
+    assert not validate_model(model_with(Decimal(25))).ok
+
+
 def test_force_does_not_replace_a_computed_formula():
     """--force may replace a forward link, never a computed total.
 
@@ -388,6 +419,7 @@ def test_mapper_uses_the_extracted_numbers_not_the_models():
         def __init__(self, label, value):
             self.label = label
             self.section = "ASSETS"
+            self.is_subtotal = False
             self._value = value
 
         def value_for(self, year):

@@ -185,7 +185,9 @@ def write_values(
                         f"{label} {year} ({cell.coordinate}) holds a formula; skipped"
                     )
                     continue
-            cell.value = float(value)
+            # A Decimal is written as it is: a float would lose the low digits
+            # of a full-rupiah figure, which runs to thirteen of them.
+            cell.value = value
             report.written.setdefault(label, {})[year] = str(value)
 
     return report

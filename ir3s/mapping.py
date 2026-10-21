@@ -55,7 +55,10 @@ def build_prompt(rows: list, labels: list[CanonicalLabel], years: list[int],
     for i, row in enumerate(rows):
         vals = " | ".join(str(row.value_for(y)) if row.value_for(y) is not None else "-" for y in shown)
         section = f"[{row.section}] " if row.section else ""
-        printed.append(f"{i}. {section}{row.label}  ({vals})")
+        # A detected subtotal is marked, so the model does not have to spot
+        # "Total" in a label that may be printed in either language.
+        subtotal = " (subtotal)" if row.is_subtotal else ""
+        printed.append(f"{i}. {section}{row.label}{subtotal}  ({vals})")
     parts = [
         "Match each printed financial-statement line to one canonical label.",
         "Canonical labels (label [section]):", *targets,
@@ -103,11 +106,14 @@ def map_statement(
 ) -> Mapped:
     """Map one statement. Returns canonical label -> {year: Decimal}.
 
-    Values are summed from the extractor rows the LLM pointed at. For each mapped
-    total, the section's "other" bucket gets (reported total - sum of the section's
-    other leaves), deepest section first, so the roll-up ties to the PDF.
-    Labels nothing maps to come back as 0. Total labels carry the PDF-reported value
-    (the writer must still treat them as derived).
+    Values are summed from the extractor rows the model pointed at, so no
+    number ever comes from the model itself. A label nothing maps to comes
+    back as 0, and a total label carries the value the PDF reported, which
+    the writer treats as derived rather than written.
+
+    A section that does not add up is caught by the accounting identities,
+    not by filling a residual: the "other" bucket is a label the model
+    assigns, like any other.
     """
     canon = [CanonicalLabel.from_spec(c) for c in labels]
     years = years or sorted({c.year for r in rows for c in r.cells})

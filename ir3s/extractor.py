@@ -20,20 +20,6 @@ from decimal import Decimal, InvalidOperation
 
 import pymupdf
 
-# A statement page carries one of these titles, in Indonesian or English.
-STATEMENT_TITLES: tuple[tuple[str, str], ...] = (
-    ("balance_sheet", "statement of financial position"),
-    ("balance_sheet", "laporan posisi keuangan"),
-    ("income_statement", "statement of profit or loss"),
-    ("income_statement", "laba rugi"),
-    ("cash_flow", "statement of cash flows"),
-    ("cash_flow", "arus kas"),
-    ("equity", "statement of changes in equity"),
-    ("equity", "laporan perubahan ekuitas"),
-    ("highlights", "financial highlights"),
-    ("highlights", "ikhtisar data keuangan"),
-)
-
 # Title words that identify the statement a page belongs to, in priority order.
 _TITLE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("balance_sheet", re.compile(r"statements?\s+of\s+financial\s+position", re.I)),

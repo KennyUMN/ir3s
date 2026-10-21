@@ -5,6 +5,7 @@ an identity that cannot be evaluated is reported in ``ValidationResult.skipped``
 """
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
@@ -14,8 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
     "StatementKind",
-    "LineItem",
-    "Statement",
     "Model",
     "SpecLine",
     "ModelSpec",
@@ -54,26 +53,6 @@ LABELS: dict[str, str] = {
 }
 
 _Values = dict[int, Decimal]
-
-
-class LineItem(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    label: str  # canonical label, e.g. "assets.cash_and_equivalents"
-    source_label: str  # exactly as printed in the PDF
-    values: _Values  # year -> value, in the PDF's own unit
-    is_total: bool = False
-    level: int = 0  # indent depth, 0 = top level
-
-
-class Statement(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    kind: StatementKind
-    company: str
-    unit: str  # e.g. "millions of Rupiah"
-    years: list[int]
-    items: list[LineItem]
 
 
 class Model(BaseModel):
@@ -153,20 +132,11 @@ class ModelSpec(BaseModel):
                     return item
         return None
 
-    def other_label(self, section: str) -> str | None:
-        entry = self.sections.get(section)
-        return entry.other if entry else None
-
-    def total_label(self, section: str) -> str | None:
-        entry = self.sections.get(section)
-        return entry.total if entry else None
-
     def header_row(self, kind: StatementKind) -> int:
         return self.header_rows.get(kind, 2)
 
     def check_row(self, name: str) -> int | None:
         return self.check_rows.get(name)
-
 
 def load_spec(source: str | Path) -> ModelSpec:
     """Parse a spec from a YAML file path, or from a YAML string."""
@@ -248,9 +218,6 @@ class ValidationResult(BaseModel):
         """One line per violation: the text to paste into an LLM retry prompt."""
         return "\n".join(v.render() for v in self.violations)
 
-    def render_skipped(self) -> str:
-        return "\n".join(s.render() for s in self.skipped)
-
 
 def validate_model(
     model: Model,
@@ -268,9 +235,15 @@ def validate_model(
     skipped: list[Skipped] = []
 
     def check(kind: StatementKind, name: str, lhs: str, rhs: list[tuple[int, str]],
-              optional: tuple[str, ...] = ()) -> None:
+              optional: tuple[str, ...] = (), also: tuple[str, ...] = ()) -> None:
         """lhs == sum(sign * rhs). `rhs` is [(+1|-1, label_key)]; optional keys are
-        added (with +1) only when present."""
+        added (with +1) only when present.
+
+        `also` names alternative right-hand sides the identity may hold under,
+        as a plain expression over the resolved labels ("pretax - tax"). The
+        identity passes when any of them does, which is how a sign convention
+        that belongs to the source is tolerated.
+        """
         data: dict[str, _Values] = getattr(model, kind)
 
         def resolve(key: str) -> str:
@@ -290,7 +263,23 @@ def validate_model(
                                   if year in data.get(label, {})]
             actual = data[lhs_label][year]
             expected = sum((sign * data[label][year] for sign, label in terms), Decimal(0))
-            if abs(actual - expected) > tolerance:
+            if abs(actual - expected) <= tolerance:
+                continue
+            # The alternatives, each as a list of (sign, label) terms.
+            for expression in also:
+                alternative = _parse_expression(expression, resolve)
+                if alternative is None:
+                    continue
+                alternative_labels = [label for _, label in alternative]
+                absent = [label for label in alternative_labels
+                          if year not in data.get(label, {})]
+                if absent:
+                    continue
+                other = sum((sign * data[label][year] for sign, label in alternative), Decimal(0))
+                if abs(actual - other) <= tolerance:
+                    expected = other
+                    break
+            else:
                 violations.append(Violation(
                     identity=name, statement=kind, year=year, expected=expected,
                     actual=actual, gap=actual - expected,
@@ -307,9 +296,13 @@ def validate_model(
           "total_assets", [(1, "total_current_assets"), (1, "total_non_current_assets")])
     check("balance_sheet", "equity.parent_total + equity.non_controlling == equity.total",
           "equity.total", [(1, "equity.parent_total"), (1, "equity.non_controlling")])
-    # Tax is printed as a negative, so it is added, not subtracted.
-    check("income_statement", "net_income == pretax + tax",
-          "net_income", [(1, "pretax"), (1, "tax")])
+    # Tax may be printed as a negative (BCA, CASS, Superbank) or as a positive
+    # expense (Deltamas), and a benefit may be printed either way too. The
+    # sign belongs to the source, so the identity holds under either
+    # convention: what it checks is that net income is pretax less the tax
+    # charge, whichever way the tax line is signed.
+    check("income_statement", "net_income == pretax - tax (either sign of tax)",
+          "net_income", [(1, "pretax"), (1, "tax")], also=("pretax - tax",))
     check("income_statement", "attributable_to_parent + non_controlling == net_income",
           "net_income", [(1, "attributable_to_parent"), (1, "non_controlling")])
     check("cash_flow", "ending_cash == beginning_cash + net_change (+ fx_effect)",
@@ -319,6 +312,24 @@ def validate_model(
 
     _check_rollups(model, spec, tolerance, violations, skipped)
     return ValidationResult(ok=not violations, violations=violations, skipped=skipped)
+
+
+def _parse_expression(expression: str, resolve) -> list[tuple[int, str]] | None:
+    """Turn "pretax - tax" into [(1, 'pretax'), (-1, 'tax')]."""
+    terms: list[tuple[int, str]] = []
+    sign = 1
+    for part in re.split(r"([+-])", expression):
+        part = part.strip()
+        if not part:
+            continue
+        if part == "+":
+            sign = 1
+            continue
+        if part == "-":
+            sign = -1
+            continue
+        terms.append((sign, resolve(part)))
+    return terms or None
 
 
 def _check_rollups(model: Model, spec: ModelSpec | None, tolerance: Decimal,

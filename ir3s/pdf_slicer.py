@@ -5,9 +5,12 @@ statements. This module finds those pages and reports the comparative years
 each one holds, so the caller can decide which documents to read at all.
 
 Comparative-year note: each audited report carries two years side by side (the
-current year and the prior year), and the prior year is often restated. Reading
-every other year's report therefore covers the full range with each year coming
-from the most recent document that reports it.
+current year and the prior year), and the prior year is often restated. So
+`plan_documents` reads every report that covers a wanted year and takes each
+year from the most recent document that reports it, which is the figure after
+any restatement. Reading every other report instead would halve the reads but
+leave a year as filed rather than as restated; that is a choice, not a
+default.
 """
 from __future__ import annotations
 

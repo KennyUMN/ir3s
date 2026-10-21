@@ -36,7 +36,9 @@ def chat(
     model: str | None = None,
     max_attempts: int = 4,
     backoff: float = 1.0,
-    timeout: float = 60.0,
+    # A mapping of a whole statement asks for a lot of thinking, and a
+    # reasoning model may take a few minutes over it.
+    timeout: float = 240.0,
     # A mapping of a whole statement is a few thousand tokens of JSON.
     max_tokens: int = 16384,
     client: httpx.Client | None = None,
