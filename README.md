@@ -108,8 +108,14 @@ which line is wrong instead of guessing again.
 ## Status
 
 Working end to end on the Bank BCA audited statements (2019-2025). All
-identities pass for every year, and the template's own check row reads zero
-after a fill.
+identities pass for every year, and the template's own balance check reads
+zero after a fill, with no forecast cell and no other tab changed.
+
+One thing to know about the template: its cash flow block is formula-driven
+off the balance sheet, so filling the balance sheet with a different
+company's figures leaves the cash check (row 145) disagreeing until the cash
+flow rows are replaced too. The balance check (row 64) is the one that proves
+the fill.
 
 Not done: segment revenue and operational drivers, writing to a live Google
 Sheet (the target is `.xlsx`, which Sheets can import), and scanned PDFs, which
