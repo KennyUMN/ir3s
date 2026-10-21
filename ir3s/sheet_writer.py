@@ -28,6 +28,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import openpyxl
+from openpyxl.comments import Comment
 from openpyxl.utils import column_index_from_string, get_column_letter
 
 _CELL_REF = re.compile(r"\$?([A-Z]{1,3})\$?(\d+)")
@@ -76,6 +77,8 @@ class WriteReport:
     written: dict[str, dict[int, str]] = field(default_factory=dict)
     skipped: list[str] = field(default_factory=list)
     checks: dict[str, str] = field(default_factory=dict)
+    # Template rows that took more than one account, and which.
+    merged: dict[int, list[str]] = field(default_factory=dict)
 
     @property
     def written_count(self) -> int:
@@ -143,11 +146,16 @@ def write_values(
     rows: dict[int, dict[int, Decimal]],
     force: bool = False,
     label_for_row: dict[int, str] | None = None,
+    merged_for_row: dict[int, list[str]] | None = None,
 ) -> WriteReport:
     """Write figures into the historical columns of a template sheet.
 
     `rows` maps a template row number to {year: value}. Totals are not written:
     the template computes them, so passing one is refused and reported.
+
+    `merged_for_row` names the canonical lines that were summed into each
+    template row. A row that took more than one account gets a comment saying
+    which, so a reader can see what went in without reading the spec.
     """
     sheet = template.sheet(sheet_name)
     historical = template.historical_columns(sheet, header_row)
@@ -156,6 +164,7 @@ def write_values(
 
     for row_number, values in sorted(rows.items()):
         label = (label_for_row or {}).get(row_number, f"row {row_number}")
+        merged = (merged_for_row or {}).get(row_number, [])
         for year, value in sorted(values.items()):
             column = historical.get(year)
             if column is None:
@@ -189,6 +198,15 @@ def write_values(
             # of a full-rupiah figure, which runs to thirteen of them.
             cell.value = value
             report.written.setdefault(label, {})[year] = str(value)
+            if len(merged) > 1:
+                # A row that took more than one account says so, so the merge
+                # can be checked without reading the spec.
+                cell.comment = Comment(
+                    "\n".join(f"- {name}" for name in merged),
+                    "ir3s",
+                    height=120, width=320,
+                )
+                report.merged.setdefault(row_number, merged)
 
     return report
 

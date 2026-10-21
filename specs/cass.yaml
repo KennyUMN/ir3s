@@ -330,11 +330,13 @@ statements:
       section: income
       template_row: 79
       description: Beban pajak penghasilan / Income tax expenses
+    # The template computes net profit itself (=G78+G79), so this line is
+    # here for the identity to be checked, not to be written.
     - label: income.net_income
       is_other: false
       section: income
       template_row: 80
-      share: true
+      check_only: true
       is_total: true
       description: Laba tahun berjalan / Profit for the year
     # The discontinued operation sits below the tax line, so the profit for
@@ -344,7 +346,7 @@ statements:
       is_other: false
       section: income
       template_row: 80
-      share: true
+      check_only: true
       description: Rugi tahun berjalan dari operasi yang dihentikan / Discontinued operations
     - label: income.attributable_to_parent
       is_other: false

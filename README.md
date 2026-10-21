@@ -100,6 +100,9 @@ It writes historical columns only. Forecast columns, the other tabs, and every
 cell holding a formula are left alone and reported. The template's own check
 rows are recomputed afterwards, so the result is proved rather than assumed.
 
+A row that took more than one account carries a comment naming them, so a
+merge can be checked by looking at the file rather than by reading the spec.
+
 ## Identities checked
 
 - total assets == total liabilities + total equity (+ temporary syirkah funds)

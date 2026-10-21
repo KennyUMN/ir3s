@@ -422,6 +422,47 @@ def test_tax_identity_holds_under_either_sign_convention():
     assert not validate_model(model_with(Decimal(25))).ok
 
 
+def test_a_row_that_took_several_accounts_says_so():
+    """A merged row records which accounts went into it.
+
+    The whole point of the tool is putting many accounts into one template
+    row, so the merge has to be visible in the file, not only in the spec.
+    """
+    import shutil
+
+    import openpyxl
+
+    from ir3s.sheet_writer import open_template, write_values
+
+    source = Path("/Users/kennyvws/.hermes/cache/scratch/fsm/template.xlsx")
+    if not source.exists():
+        pytest.skip("template not present")
+    copy = Path(__file__).parent / "_comment_test.xlsx"
+    shutil.copyfile(source, copy)
+    try:
+        template = open_template(copy)
+        report = write_values(
+            template, "3 Statements", 5,
+            {36: {2023: Decimal(100)}, 9: {2023: Decimal(200)}},
+            force=True,
+            label_for_row={36: "row 36", 9: "row 9"},
+            merged_for_row={
+                36: ["assets.deposits_from_customers", "syirkah.total"],
+                9: ["assets.receivables"],
+            },
+        )
+        template.workbook.save(copy)
+        assert report.merged == {36: ["assets.deposits_from_customers", "syirkah.total"]}
+        sheet = openpyxl.load_workbook(copy)["3 Statements"]
+        merged_cell = sheet.cell(row=36, column=7)
+        assert merged_cell.comment is not None
+        assert "syirkah.total" in merged_cell.comment.text
+        # A row that took one account gets no comment.
+        assert sheet.cell(row=9, column=7).comment is None
+    finally:
+        copy.unlink(missing_ok=True)
+
+
 def test_force_does_not_replace_a_computed_formula():
     """--force may replace a forward link, never a computed total.
 

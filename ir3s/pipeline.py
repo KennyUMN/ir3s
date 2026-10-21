@@ -134,6 +134,9 @@ def fill_template(
 
     rows: dict[int, dict[int, Decimal]] = {}
     labels_by_row: dict[int, str] = {}
+    # Which canonical lines went into each template row, so a row that took
+    # more than one account can say so in a comment.
+    merged_for_row: dict[int, list[str]] = {}
     # Each statement block has its own year-header row, so the columns are
     # resolved per statement rather than once for the sheet.
     header_row = spec.header_rows.get("balance_sheet", 2)
@@ -157,11 +160,13 @@ def fill_template(
             for year, value in values.items():
                 bucket[year] = bucket.get(year, Decimal(0)) + value * scale
             labels_by_row.setdefault(spec_line.template_row, label)
+            merged_for_row.setdefault(spec_line.template_row, []).append(label)
 
     sheet_name = spec.sheet
     header_row = spec.header_rows.get("balance_sheet", 2)
     report = write_values(
-        template, sheet_name, header_row, rows, force=force, label_for_row=labels_by_row
+        template, sheet_name, header_row, rows, force=force,
+        label_for_row=labels_by_row, merged_for_row=merged_for_row,
     )
     result.write_report = report
     result.output_path = None if dry_run else target
