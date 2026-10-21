@@ -108,12 +108,43 @@ class SpecSection(BaseModel):
     other: str | None = None
 
 
+# How many units of the reporting currency one printed figure represents.
+# A statement reported in full rupiah is divided down to a millions column
+# before it is written.
+UNIT_SCALE: dict[str, Decimal] = {
+    "Rupiah": Decimal(1),
+    "units": Decimal(1),
+    "thousands": Decimal(1_000),
+    "millions": Decimal(1_000_000),
+    "millions of Rupiah": Decimal(1_000_000),
+    "billions": Decimal(1_000_000_000),
+}
+
+
+def unit_scale(unit: str) -> Decimal:
+    """The factor that converts a printed figure into the reporting unit."""
+    return UNIT_SCALE.get(unit, Decimal(1))
+
+
 class ModelSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     company: str
     unit: str
     statements: dict[StatementKind, list[SpecLine]]
+    # The unit the template's columns are in. A statement reported in a
+    # different unit is divided down to this one before it is written, so a
+    # full-rupiah report fills a millions column correctly.
+    target_unit: str | None = None
+
+    def scale_to_target(self, source_unit: str) -> Decimal:
+        """The factor that converts a figure in `source_unit` to the target.
+
+        The target is the unit the template's columns are in, which is the
+        spec's own unit unless it says otherwise.
+        """
+        target = self.target_unit or self.unit
+        return unit_scale(source_unit) / unit_scale(target)
     # v1 does not populate drivers; the field is accepted so specs can carry it.
     sections: dict[str, SpecSection] = Field(default_factory=dict)
     # Where the numbers go. `sheet` names the tab, `header_rows` gives the

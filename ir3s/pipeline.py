@@ -69,9 +69,14 @@ def build_model(
                 years.append(year)
     years.sort()
 
+    source_unit = next(
+        (statement.unit for statement in statements.values()
+         if statement.unit != "unspecified"),
+        spec.unit,
+    )
     feedback: list[str] | None = None
     result = ValidationResult(ok=True)
-    model = Model(company=spec.company, unit=spec.unit, years=years)
+    model = Model(company=spec.company, unit=source_unit, years=years)
 
     for attempt in range(max(1, max_attempts)):
         values: dict[str, dict[str, dict[int, Decimal]]] = {}
@@ -87,7 +92,7 @@ def build_model(
 
         model = Model(
             company=spec.company,
-            unit=spec.unit,
+            unit=source_unit,
             years=years,
             balance_sheet=values.get("balance_sheet", {}),
             income_statement=values.get("income_statement", {}),
@@ -132,6 +137,10 @@ def fill_template(
     # Each statement block has its own year-header row, so the columns are
     # resolved per statement rather than once for the sheet.
     header_row = spec.header_rows.get("balance_sheet", 2)
+    # A statement reported in a different unit from the template's columns is
+    # divided down here, so a full-rupiah report fills a millions column. The
+    # model's unit is the one the statement was printed in.
+    scale = spec.scale_to_target(model.unit)
     for kind in STATEMENTS:
         for label, values in getattr(model, kind).items():
             spec_line = spec.line(label)
@@ -146,7 +155,7 @@ def fill_template(
                 continue
             bucket = rows.setdefault(spec_line.template_row, {})
             for year, value in values.items():
-                bucket[year] = bucket.get(year, Decimal(0)) + value
+                bucket[year] = bucket.get(year, Decimal(0)) + value * scale
             labels_by_row.setdefault(spec_line.template_row, label)
 
     sheet_name = spec.sheet

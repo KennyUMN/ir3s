@@ -278,6 +278,24 @@ def test_the_cass_spec_covers_the_accounts_the_reader_produces():
                 f"{kind}: {line.label} names {words[0]!r}, which the statement does not print"
 
 
+def test_a_label_that_wraps_over_several_lines_is_one_account():
+    """A label can run over several lines before its figure arrives.
+
+    Deltamas prints "Properti investasi - setelah dikurangi akumulasi
+    penyusutan ... Rp 29.437.573.213 pada tanggal ... " over five lines, with
+    the figure on the sixth.
+    """
+    from ir3s.extractor import extract_statements
+
+    pdf = AUDIT / "deltamas" / "dmas_fs_fy2024.pdf"
+    if not pdf.exists():
+        pytest.skip("Deltamas fixture not present")
+    balance = extract_statements(str(pdf))["balance_sheet"]
+    investment = next((row for row in balance.rows if row.value_for(2024) == 190016333904), None)
+    assert investment is not None, "the investment property line was not read"
+    assert investment.label.startswith("Properti investasi"), investment.label
+
+
 def test_reader_handles_a_figure_layout_with_a_notes_column():
     """A statement whose figure columns outnumber its year columns.
 

@@ -20,6 +20,8 @@ from decimal import Decimal, InvalidOperation
 
 import pymupdf
 
+from .schemas import UNIT_SCALE as _UNIT_SCALE, unit_scale as _unit_scale
+
 # Title words that identify the statement a page belongs to, in priority order.
 _TITLE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("balance_sheet", re.compile(r"statements?\s+of\s+financial\s+position", re.I)),
@@ -551,7 +553,12 @@ def read_page(
                 following = lines[header_index + 2 + position] if header_index + 2 + position < len(lines) else []
                 next_x = min((word[0] for word in following), default=0.0)
                 indented = bool(following) and next_x > word_first_x + 2.0
-                if not indented:
+                if not indented and pending:
+                    # The previous line had no figures either, so this line
+                    # continues the wrap it started: a label can run over
+                    # several lines before its figure arrives.
+                    pending.append(label)
+                elif not indented:
                     # A section heading: it names the section, it is not part
                     # of the next line's label.
                     section = label
@@ -759,22 +766,9 @@ def _detect_unit(text: str) -> str:
     return "unspecified"
 
 
-# How many units of the reporting currency one printed figure represents.
-# The template's columns are in millions, so a full-rupiah report has to be
-# divided down before it is written.
-UNIT_SCALE: dict[str, Decimal] = {
-    "Rupiah": Decimal(1),
-    "units": Decimal(1),
-    "thousands": Decimal(1_000),
-    "millions": Decimal(1_000_000),
-    "millions of Rupiah": Decimal(1_000_000),
-    "billions": Decimal(1_000_000_000),
-}
-
-
-def unit_scale(unit: str) -> Decimal:
-    """The factor that converts a printed figure into the reporting unit."""
-    return UNIT_SCALE.get(unit, Decimal(1))
+# The scale table lives with the spec, which is what applies it.
+UNIT_SCALE = _UNIT_SCALE
+unit_scale = _unit_scale
 
 
 def _detect_company(text: str) -> str:
