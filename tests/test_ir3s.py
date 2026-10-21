@@ -78,6 +78,65 @@ def test_number_formats(token, expected):
     assert parse_number(token) == expected
 
 
+def _synthetic_bilingual_page(path: Path) -> None:
+    """A page shaped like a bilingual Indonesian statement.
+
+    Indonesian label on the left, the two year figures in the middle with a
+    notes column between them, English label on the right. The figures sit
+    left of the BCA-tuned VALUE_MIN_X, and the notes column makes the number
+    of numeric columns differ from the number of years.
+    """
+    import pymupdf
+
+    document = pymupdf.open()
+    page = document.new_page(width=595, height=842)
+
+    def put(x: float, y: float, text: str, size: int = 9, bold: bool = False) -> None:
+        page.insert_text((x, y), text, fontsize=size,
+                          fontname="hebo" if bold else "helv")
+
+    put(60, 60, "LAPORAN POSISI KEUANGAN", 12, True)
+    put(60, 90, "31 Desember 2023 dan 2022")
+    put(220, 110, "2023", 9, True)
+    put(290, 110, "Notes", 9, True)
+    put(360, 110, "2022", 9, True)
+    for y in (140, 160):
+        put(60, y, "Kas dan setara kas" if y == 140 else "Jumlah aset", 9, y == 160)
+        put(240, y, "453.153")
+        put(300, y, "4")
+        put(370, y, "351.786")
+        put(440, y, "Cash and cash equivalents")
+    put(60, 210, "Catatan atas laporan keuangan")
+    document.save(path)
+    document.close()
+
+
+def test_reader_handles_a_figure_layout_with_a_notes_column():
+    """A statement whose figure columns outnumber its year columns.
+
+    The header row of a bilingual Indonesian statement carries two years and
+    a notes column, so the number of numeric columns below it is not the
+    number of years. The reader used to raise TypeError here, on every
+    Indonesian statement except the one it was tuned on.
+
+    It now reports that the layout is unsupported rather than crashing on a
+    float, and rather than returning an empty result that would read like a
+    document with no statements.
+    """
+    import pymupdf
+
+    from ir3s.extractor import ExtractionError, extract_statements
+
+    pdf = Path(__file__).parent / "_synthetic.pdf"
+    _synthetic_bilingual_page(pdf)
+    try:
+        with pytest.raises(ExtractionError) as failure:
+            extract_statements(str(pdf))
+        assert "not supported" in str(failure.value)
+    finally:
+        pdf.unlink(missing_ok=True)
+
+
 def test_number_formats_do_not_confuse_a_thousands_group_with_a_decimal():
     """'1,234' is a thousands group; '1,23' is a decimal."""
     assert parse_number("1,234") == Decimal("1234")

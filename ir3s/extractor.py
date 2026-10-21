@@ -57,6 +57,10 @@ _NUMERIC = re.compile(r"^\(?-?[\d][\d.,]*\)?\*?$")
 _DASHES = {"-", "--", "–", "—"}
 
 
+class ExtractionError(Exception):
+    """A statement was located but could not be read."""
+
+
 @dataclass(frozen=True)
 class Cell:
     """One figure, already bound to a year."""
@@ -296,7 +300,7 @@ def read_page(
         pairs: list[tuple[float, list[tuple]]] = []
         remaining = list(clusters)
         for word in sorted(
-            (w for line in lines[header_index] for w in line if parse_year(w[4].strip())),
+            (w for w in lines[header_index] if parse_year(w[4].strip())),
             key=lambda w: w[0],
         ):
             if not remaining:
@@ -481,6 +485,16 @@ def extract_statements(
                 if year not in years:
                     years.append(year)
             rows.extend(page_rows)
+        if not rows and years:
+            # The page was recognised as a statement but nothing was read off
+            # it. That means the figure columns were not where this reader
+            # expects them, which is a failure worth reporting: a silent
+            # empty result reads like a document with no statements.
+            raise ExtractionError(
+                f"{kind}: found statement pages {page_numbers} but read no rows. "
+                "The figure columns are not where the reader expects them; "
+                "this layout is not supported yet."
+            )
         if rows:
             statements[kind] = Statement(
                 kind=kind,
