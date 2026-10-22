@@ -145,9 +145,11 @@ def fill_template(
     # model's unit is the one the statement was printed in.
     scale = spec.scale_to_target(model.unit)
     for kind in STATEMENTS:
-        for label, values in getattr(model, kind).items():
-            spec_line = spec.line(label)
-            if spec_line is None or spec_line.check_only:
+        # The spec's lines, not the model's: a line the statement does not
+        # print has to be written as zero, or the row keeps the number of
+        # whichever company filled the template last.
+        for spec_line in spec.lines(kind):
+            if spec_line.check_only:
                 # A check-only line is not in the template at all.
                 continue
             if spec_line.is_total and not spec_line.share:
@@ -156,11 +158,13 @@ def fill_template(
                 # marked `share` has no template row of its own and is written
                 # into the row it shares.
                 continue
+            values = getattr(model, kind).get(spec_line.label, {})
             bucket = rows.setdefault(spec_line.template_row, {})
-            for year, value in values.items():
+            for year in model.years:
+                value = values.get(year, Decimal(0))
                 bucket[year] = bucket.get(year, Decimal(0)) + value * scale
-            labels_by_row.setdefault(spec_line.template_row, label)
-            merged_for_row.setdefault(spec_line.template_row, []).append(label)
+            labels_by_row.setdefault(spec_line.template_row, spec_line.label)
+            merged_for_row.setdefault(spec_line.template_row, []).append(spec_line.label)
 
     sheet_name = spec.sheet
     header_row = spec.header_rows.get("balance_sheet", 2)

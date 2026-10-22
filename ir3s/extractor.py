@@ -49,7 +49,11 @@ NOTES_TOKEN = "Notes"
 # A statement names itself in the top band of the page, above the figures.
 HEADER_BAND_Y = 120.0
 
-_NUMERIC = re.compile(r"^\(?-?[\d][\d.,]*\)?\*?$")
+# A figure may carry a footnote marker, which prints as an extra closing
+# parenthesis: "(261.877))". The marker is not part of the number, and
+# parse_number already ignores it, so a token that parse_number reads must
+# be recognised as numeric here too.
+_NUMERIC = re.compile(r"^\(?-?[\d][\d.,]*\)*\*?$")
 _DASHES = {"-", "--", "–", "—"}
 
 

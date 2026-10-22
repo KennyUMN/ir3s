@@ -123,9 +123,12 @@ def map_statement(
     reply = (ask or llm.chat_json)(build_prompt(rows, canon, years, feedback))
     assign = _parse_assignment(reply, rows, canon)
 
-    zero = {y: Decimal(0) for y in years}
-    result: Mapped = {c.label: (_sum_rows(rows, assign[c.label], years) if c.label in assign else dict(zero))
-                      for c in canon}
+    # A label the model did not find is ABSENT, not zero. "The statement
+    # does not print this line" and "the statement prints zero" are different
+    # facts, and only the second is a number. An identity that needs the
+    # first has to be skipped, not checked against a zero.
+    result: Mapped = {c.label: _sum_rows(rows, assign[c.label], years)
+                      for c in canon if c.label in assign}
 
     # A derived total is always the sum of its section's leaves, even when
     # the PDF prints a total of its own: the leaves land in the template's
