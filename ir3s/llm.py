@@ -93,7 +93,7 @@ def chat(
             if resp.status_code >= 400:
                 raise LLMError(f"LLM request rejected, HTTP {resp.status_code}: {resp.text[:300]}")
             try:
-                content = resp.json()["choices"][0]["message"]["content"]
+                content = _reply_content(resp)
             except (ValueError, KeyError, IndexError, TypeError) as exc:
                 raise LLMError(f"unexpected response shape: {resp.text[:300]}") from exc
             if not content or not content.strip():
@@ -126,6 +126,28 @@ def chat(
         if client is None:
             http.close()
     raise LLMError(f"LLM request failed after {max_attempts} attempts; last: {last}")
+
+
+def _reply_content(resp) -> str:
+    """The model's answer from a response.
+
+    Some upstreams answer with the body padded by blank lines, or with more
+    than one object in it, so the body is not parsed as strict JSON.
+    """
+    try:
+        return resp.json()["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        pass
+    data = _extract_objects(resp.text)
+    for candidate in data:
+        choices = candidate.get("choices")
+        if not isinstance(choices, list) or not choices:
+            continue
+        message = choices[0].get("message") or {}
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+    raise ValueError("no completion object in the body")
 
 
 def chat_json(prompt: str, **kwargs) -> dict:
@@ -164,6 +186,17 @@ def _extract_json(text: str) -> dict | None:
     answer wins, and otherwise the last one does, because a model that
     repeats itself puts the final answer last.
     """
+    objects = _extract_objects(text)
+    if not objects:
+        return None
+    for candidate in objects:
+        if "mapping" in candidate:
+            return candidate
+    return objects[-1]
+
+
+def _extract_objects(text: str) -> list[dict]:
+    """Every complete JSON object in a string that may contain prose."""
     objects: list[dict] = []
     depth = 0
     start = -1
@@ -195,9 +228,4 @@ def _extract_json(text: str) -> dict | None:
                 if isinstance(candidate, dict):
                     objects.append(candidate)
                 start = -1
-    if not objects:
-        return None
-    for candidate in objects:
-        if "mapping" in candidate:
-            return candidate
-    return objects[-1]
+    return objects

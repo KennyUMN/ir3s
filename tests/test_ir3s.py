@@ -423,6 +423,32 @@ def test_tax_identity_holds_under_either_sign_convention():
     assert not validate_model(model_with(Decimal(25))).ok
 
 
+def test_a_padded_reply_body_is_read():
+    """An upstream may pad the body with blank lines.
+
+    The body then is not strict JSON, and a reader that parses it strictly
+    fails on a request that actually succeeded.
+    """
+    from ir3s.llm import _reply_content
+
+    class Response:
+        text = ""
+
+        def __init__(self, text):
+            self.text = text
+
+        def json(self):
+            return json.loads(self.text)
+
+    body = json.dumps({
+        "id": "gen-1", "object": "chat.completion",
+        "choices": [{"index": 0, "finish_reason": "stop",
+                     "message": {"role": "assistant", "content": '{"mapping": {}}'}}],
+    })
+    assert _reply_content(Response("\n   \n\n" + body)) == '{"mapping": {}}'
+    assert _reply_content(Response(body)) == '{"mapping": {}}'
+
+
 def test_a_reply_holding_two_objects_is_read():
     """A reply can hold more than one JSON object.
 
