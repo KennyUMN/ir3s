@@ -156,6 +156,11 @@ class ModelSpec(BaseModel):
     sheet: str = "3 Statements"
     header_rows: dict[str, int] = Field(default_factory=dict)
     check_rows: dict[str, int] = Field(default_factory=dict)
+    # The template rows each statement owns, as (first, last). The writer
+    # empties them before writing, so a row the statement does not print
+    # cannot keep the number of whichever company filled the template last.
+    # A statement that is not listed has nothing to clear.
+    row_ranges: dict[str, tuple[int, int]] = Field(default_factory=dict)
 
     def lines(self, kind: StatementKind) -> list[SpecLine]:
         return self.statements.get(kind, [])

@@ -42,6 +42,9 @@ header_rows:
   balance_sheet: 5
   income_statement: 68
   cash_flow: 91
+row_ranges:
+  balance_sheet: [6, 67]
+  income_statement: [69, 90]
 
 check_rows:
   balance: 64
@@ -192,12 +195,22 @@ statements:
       template_row: 32
       share: true
       description: Setoran jaminan / Security deposits
+    # Deltamas splits its current contract liabilities into a related-party
+    # part and a third-party part under one heading. The template has one
+    # contract liability row, so both parts go into it, and the heading
+    # itself, which carries no figure of its own, is not a line.
     - label: liabilities.contract_liabilities
       is_other: false
       section: liabilities.current
       template_row: 36
       share: true
-      description: Liabilitas kontrak / Contract liabilities
+      description: Liabilitas kontrak - Pihak ketiga / Contract liabilities - third parties
+    - label: liabilities.contract_liabilities_related
+      is_other: false
+      section: liabilities.current
+      template_row: 36
+      share: true
+      description: Liabilitas kontrak - Pihak berelasi / Contract liabilities - related parties
     - label: liabilities.other_advances
       is_other: false
       section: liabilities.current
@@ -233,11 +246,18 @@ statements:
     # non-current rows are bank loans, leases, employee benefits and deferred
     # tax. The account goes to the catch-all rather than into a row that
     # means something else.
+    # The template has no row for a non-current contract liability. Its
+    # non-current block is rows 46 to 49 (bank loans, leases, employee
+    # benefits, deferred tax) and row 50 sums them. Deltamas has no bank
+    # loans, no leases and no deferred tax liability, so its non-current
+    # contract liability goes in row 49 and the block still adds up.
+    #
+    # The cell carries a comment saying what is actually in it, so the row's
+    # label does not have to be believed.
     - label: liabilities.contract_liabilities_non_current
       is_other: false
-      section: liabilities.current
-      template_row: 32
-      share: true
+      section: liabilities.non_current
+      template_row: 49
       description: Liabilitas kontrak - pihak ketiga / Contract liabilities, non-current
     - label: liabilities.long_term_employee_benefits
       is_other: false

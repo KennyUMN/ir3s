@@ -422,6 +422,44 @@ def test_tax_identity_holds_under_either_sign_convention():
     assert not validate_model(model_with(Decimal(25))).ok
 
 
+def test_a_row_the_statement_does_not_print_is_emptied():
+    """A row the statement has no account for must not keep an old number.
+
+    The template's total rows sum every row in the block, so a row that kept
+    the previous company's number would make the block not add up.
+    """
+    import shutil
+
+    import openpyxl
+
+    from ir3s.sheet_writer import open_template, write_values
+
+    source = Path("/Users/kennyvws/.hermes/cache/scratch/fsm/template.xlsx")
+    if not source.exists():
+        pytest.skip("template not present")
+    copy = Path(__file__).parent / "_clear_test.xlsx"
+    shutil.copyfile(source, copy)
+    try:
+        template = open_template(copy)
+        sheet = openpyxl.load_workbook(copy)["3 Statements"]
+        stale = sheet.cell(row=10, column=7).value
+        assert stale is not None, "the fixture row should hold a value"
+        write_values(
+            template, "3 Statements", 5,
+            {36: {2023: Decimal(100)}},
+            force=True, label_for_row={36: "row 36"},
+            clear_rows=((6, 67),),
+        )
+        template.workbook.save(copy)
+        sheet = openpyxl.load_workbook(copy)["3 Statements"]
+        assert sheet.cell(row=10, column=7).value is None, "the stale number stayed"
+        assert sheet.cell(row=36, column=7).value == 100
+        # The template's own totals are formulas and are left alone.
+        assert str(sheet.cell(row=27, column=7).value).startswith("=")
+    finally:
+        copy.unlink(missing_ok=True)
+
+
 def test_a_row_that_took_several_accounts_says_so():
     """A merged row records which accounts went into it.
 

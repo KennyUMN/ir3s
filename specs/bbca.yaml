@@ -40,6 +40,9 @@ header_rows:
   balance_sheet: 5
   income_statement: 68
   cash_flow: 91
+row_ranges:
+  balance_sheet: [6, 67]
+  income_statement: [69, 90]
 
 check_rows:
   balance: 64

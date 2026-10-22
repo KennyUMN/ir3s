@@ -147,6 +147,7 @@ def write_values(
     force: bool = False,
     label_for_row: dict[int, str] | None = None,
     merged_for_row: dict[int, list[str]] | None = None,
+    clear_rows: tuple[tuple[int, int], ...] | None = None,
 ) -> WriteReport:
     """Write figures into the historical columns of a template sheet.
 
@@ -156,11 +157,30 @@ def write_values(
     `merged_for_row` names the canonical lines that were summed into each
     template row. A row that took more than one account gets a comment saying
     which, so a reader can see what went in without reading the spec.
+
+    `clear_rows` is the range of template rows the statement owns. Their
+    historical cells are emptied first, so a row the statement does not
+    print cannot keep the number of whichever company filled the template
+    last. A cell holding a formula is left alone: the template computes it.
     """
     sheet = template.sheet(sheet_name)
     historical = template.historical_columns(sheet, header_row)
     forecast = template.forecast_columns(sheet, header_row)
     report = WriteReport()
+
+    if clear_rows:
+        for first, last in clear_rows:
+            for row_number in range(first, last + 1):
+                for column in historical.values():
+                    cell = sheet.cell(row=row_number, column=column)
+                    if isinstance(cell.value, str) and cell.value.startswith("="):
+                        if _CELL_REF.search(cell.value):
+                            # A formula over other cells is the template
+                            # computing something; leave it.
+                            continue
+                        # A formula over bare numbers is a value the template
+                        # owner wrote down, not a total. It is stale too.
+                    cell.value = None
 
     for row_number, values in sorted(rows.items()):
         label = (label_for_row or {}).get(row_number, f"row {row_number}")
@@ -190,10 +210,14 @@ def write_values(
                     # A formula that computes something (=sum(H8:H15)) is a
                     # total. Replacing it with a constant would break the
                     # template's own check rows, so --force does not allow it.
-                    report.skipped.append(
-                        f"{label} {year} ({cell.coordinate}) holds a formula; skipped"
-                    )
-                    continue
+                    # A formula over bare numbers (=273579+1596) is not a
+                    # total but a value the owner wrote down, and the
+                    # statement's figure replaces it.
+                    if _CELL_REF.search(cell.value):
+                        report.skipped.append(
+                            f"{label} {year} ({cell.coordinate}) holds a formula; skipped"
+                        )
+                        continue
             # A Decimal is written as it is: a float would lose the low digits
             # of a full-rupiah figure, which runs to thirteen of them.
             cell.value = value

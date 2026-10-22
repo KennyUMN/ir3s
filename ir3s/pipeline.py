@@ -171,6 +171,8 @@ def fill_template(
     report = write_values(
         template, sheet_name, header_row, rows, force=force,
         label_for_row=labels_by_row, merged_for_row=merged_for_row,
+        clear_rows=tuple(r for kind in STATEMENTS
+                         if (r := spec.row_ranges.get(kind)) is not None),
     )
     result.write_report = report
     result.output_path = None if dry_run else target
