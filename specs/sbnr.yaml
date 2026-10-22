@@ -77,11 +77,18 @@ statements:
       template_row: 24
       share: true
       description: Efek-efek - bersih / Securities, net
+    # The template's row 9 is one receivables row, so it takes the NET
+    # figure. Superbank prints three: the gross (Jumlah kredit yang
+    # diberikan), the impairment allowance (Dikurangi: Cadangan kerugian
+    # penurunan nilai), and the net (Jumlah kredit yang diberikan - bersih).
+    # Only the net is written, so the description names it exactly and says
+    # that the gross is not it.
     - label: assets.receivables
       is_other: false
       section: assets
       template_row: 9
-      description: Jumlah kredit yang diberikan - bersih / Total loans receivable, net
+      description: Jumlah kredit yang diberikan - bersih / Total loans receivable - net
+        (the NET figure only, not the gross "Jumlah kredit yang diberikan")
     - label: assets.fixed_assets
       is_other: false
       section: assets
@@ -99,11 +106,11 @@ statements:
       template_row: 21
       description: Aset pajak tangguhan / Deferred tax assets
     - label: assets.other_non_current
-      is_other: false
-      section: assets
       is_other: true
+      section: assets
       template_row: 25
-      description: Aset lain-lain / Other assets
+      description: Aset lain-lain / Other assets (not the loan impairment
+        allowance, which belongs with the loans)
     - label: assets.total
       is_other: false
       section: assets
@@ -127,9 +134,8 @@ statements:
       template_row: 34
       description: Beban masih harus dibayar / Accrued expenses
     - label: liabilities.other_payables
-      is_other: false
-      section: liabilities
       is_other: true
+      section: liabilities
       template_row: 32
       description: Liabilitas lain-lain / Other liabilities
     - label: liabilities.employee_benefits

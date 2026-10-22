@@ -111,9 +111,8 @@ statements:
       template_row: 12
       description: Pajak dibayar dimuka / Prepaid taxes
     - label: assets.other_current
-      is_other: false
-      section: assets.current
       is_other: true
+      section: assets.current
       template_row: 15
       share: true
       description: Aset lain-lain / Other current assets
@@ -217,9 +216,8 @@ statements:
       template_row: 41
       description: Liabilitas sewa yang jatuh tempo dalam waktu satu tahun
     - label: liabilities.other_payables
-      is_other: false
-      section: liabilities.current
       is_other: true
+      section: liabilities.current
       template_row: 32
       share: true
       description: Utang lain-lain / Other payables

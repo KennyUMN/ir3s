@@ -87,9 +87,8 @@ statements:
       template_row: 14
       description: Aset lepasan tersedia untuk dijual / Assets held for sale
     - label: assets.other_current
-      is_other: false
-      section: assets.current
       is_other: true
+      section: assets.current
       template_row: 15
       description: Aset lancar lain-lain / Other current assets
     - label: assets.total_current
@@ -131,9 +130,8 @@ statements:
       template_row: 24
       description: Goodwill
     - label: assets.other_non_current
-      is_other: false
-      section: assets.non_current
       is_other: true
+      section: assets.non_current
       template_row: 25
       description: Aset tidak lancar lain-lain / Other non-current assets
     - label: assets.total_non_current

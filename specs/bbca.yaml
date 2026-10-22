@@ -108,9 +108,8 @@ statements:
       template_row: 14
       description: Assets held for sale
     - label: assets.other_current
-      is_other: false
-      section: assets.current
       is_other: true
+      section: assets.current
       template_row: 15
       description: Any other current asset
     # --- assets, non-current ---------------------------------------------
@@ -145,9 +144,8 @@ statements:
       template_row: 24
       description: Goodwill and intangible assets
     - label: assets.other_non_current
-      is_other: false
-      section: assets.non_current
       is_other: true
+      section: assets.non_current
       template_row: 25
       description: Every other non-current asset
     # --- assets, totals ---------------------------------------------------
@@ -183,9 +181,8 @@ statements:
       template_row: 31
       description: Trade and other payables
     - label: liabilities.other_payables
-      is_other: false
-      section: liabilities.current
       is_other: true
+      section: liabilities.current
       template_row: 32
       description: Every other current liability
     - label: liabilities.taxes_payable
@@ -292,9 +289,8 @@ statements:
       template_row: 54
       description: Additional paid-in capital
     - label: equity.other_reserves
-      is_other: false
-      section: equity.parent
       is_other: true
+      section: equity.parent
       template_row: 55
       description: Every other reserve, including treasury stock and revaluation
     - label: equity.foreign_currency
@@ -382,9 +378,8 @@ statements:
       template_row: 75
       description: Finance cost
     - label: income.other_operating_income
-      is_other: false
-      section: income
       is_other: true
+      section: income
       template_row: 76
       description: Other operating income
     - label: income.other_operating_expenses
