@@ -5,6 +5,7 @@ change that breaks the reader fails here rather than in someone's model.
 """
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from pathlib import Path
 
@@ -420,6 +421,29 @@ def test_tax_identity_holds_under_either_sign_convention():
     # A tax figure that is simply wrong is still caught.
     assert not validate_model(model_with(Decimal(-25))).ok
     assert not validate_model(model_with(Decimal(25))).ok
+
+
+def test_a_reply_holding_two_objects_is_read():
+    """A reply can hold more than one JSON object.
+
+    An upstream that echoes its own envelope, or a model that answers twice,
+    both put more than one object in the reply. The one that looks like the
+    answer wins.
+    """
+    from ir3s.llm import _extract_json
+
+    envelope = json.dumps({
+        "id": "gen-1", "object": "chat.completion",
+        "choices": [{"index": 0, "message": {"content": "{}"}}],
+    })
+    answer = json.dumps({"mapping": {"assets.cash": [0]}, "reason": "ok"})
+    assert _extract_json(envelope + "\n" + answer)["mapping"] == {"assets.cash": [0]}
+    # A model that answers twice puts the answer last.
+    twice = json.dumps({"mapping": {"a": [1]}}) + "\n" + json.dumps({"mapping": {"b": [2]}})
+    assert _extract_json(twice)["mapping"] == {"a": [1]}
+    # Prose in front is still tolerated.
+    assert _extract_json('Thinking...\n{"mapping": {"c": [3]}}')["mapping"] == {"c": [3]}
+    assert _extract_json("no json here") is None
 
 
 def test_a_row_the_statement_does_not_print_is_emptied():

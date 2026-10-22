@@ -148,12 +148,23 @@ def chat_json(prompt: str, **kwargs) -> dict:
                 f"model did not return valid JSON; reply ended: ...{text[-200:]}"
             )
     if not isinstance(data, dict):
+        # A reply holding more than one object is not a dict, so the objects
+        # are picked out of it.
+        data = _extract_json(text) or data
+    if not isinstance(data, dict):
         raise LLMError(f"model returned JSON that is not an object: {text[:300]}")
     return data
 
 
 def _extract_json(text: str) -> dict | None:
-    """The first complete JSON object in a string that may contain prose."""
+    """The JSON object in a string that may contain prose.
+
+    A reply can hold more than one object: an upstream that echoes its own
+    envelope, or a model that answers twice. The one that looks like the
+    answer wins, and otherwise the last one does, because a model that
+    repeats itself puts the final answer last.
+    """
+    objects: list[dict] = []
     depth = 0
     start = -1
     in_string = False
@@ -182,6 +193,11 @@ def _extract_json(text: str) -> dict | None:
                     start = -1
                     continue
                 if isinstance(candidate, dict):
-                    return candidate
+                    objects.append(candidate)
                 start = -1
-    return None
+    if not objects:
+        return None
+    for candidate in objects:
+        if "mapping" in candidate:
+            return candidate
+    return objects[-1]
