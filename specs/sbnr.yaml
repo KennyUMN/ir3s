@@ -71,6 +71,13 @@ statements:
       template_row: 8
       share: true
       description: Giro pada bank-bank lain / Current accounts with other banks
+    # Placements with Bank Indonesia are cash and cash equivalents too.
+    - label: assets.placements_with_central_bank
+      is_other: false
+      section: assets
+      template_row: 8
+      share: true
+      description: Penempatan pada Bank Indonesia / Placements with Bank Indonesia
     - label: assets.securities
       is_other: false
       section: assets
