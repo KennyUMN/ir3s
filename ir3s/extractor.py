@@ -213,6 +213,42 @@ def parse_year(token: str) -> int | None:
     return int(text[:4])
 
 
+_SPLIT_FIGURE = re.compile(r"^\d{1,3}([.,]\d{3})+([.,]\d+)?\)?$")
+# How far a lone "(" may sit left of its figure and still be its sign.
+PAREN_GAP_PT = 40.0
+
+
+def _join_parentheses(line: list[tuple]) -> list[tuple]:
+    """Put a negative figure printed as "(  1.234 )" back together.
+
+    Some statements space the parentheses away from the digits, so the "("
+    and ")" come out as words of their own and the figure reads as positive.
+    The joined word keeps the figure's own box, so its column does not move.
+    """
+    joined: list[tuple] = []
+    index = 0
+    while index < len(line):
+        word = line[index]
+        following = line[index + 1] if index + 1 < len(line) else None
+        if (
+            word[4].strip() == "("
+            and following is not None
+            and _SPLIT_FIGURE.match(following[4].strip())
+            and following[0] - word[2] <= PAREN_GAP_PT
+        ):
+            text = "(" + following[4].strip()
+            index += 2
+            if not text.endswith(")"):
+                if index < len(line) and line[index][4].strip() == ")":
+                    index += 1
+                text += ")"
+            joined.append((*following[:4], text, *following[5:]))
+            continue
+        joined.append(word)
+        index += 1
+    return joined
+
+
 def _cluster_lines(words: list[tuple], tolerance: float = 3.5) -> list[list[tuple]]:
     """Group words into visual lines by vertical position."""
     lines: list[dict] = []
@@ -577,7 +613,7 @@ def read_page(
 
     Returns the years found on the page and the rows read from it.
     """
-    lines = _cluster_lines(page.get_text("words"))
+    lines = [_join_parentheses(line) for line in _cluster_lines(page.get_text("words"))]
 
     header_index, _, notes_x = _find_year_header(lines)
     if header_index < 0:

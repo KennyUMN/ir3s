@@ -235,3 +235,18 @@ def test_a_notes_page_titled_with_a_cash_flow_note_is_not_the_cash_flow():
     if not path.exists():
         pytest.skip(f"{path.name} not present")
     assert find_statement_pages(pymupdf.open(str(path)))["cash_flow"] == [10]
+
+
+def test_a_negative_printed_with_spaced_parentheses_is_negative():
+    """DEWA 2025 prints "(  899.579.380 )": the "(" is a word of its own.
+
+    The figure read as positive, so every expense and payment flipped sign.
+    """
+    statements = _statements(AUDIT / "dewa" / "dewa_fs_2025.pdf")
+    income = statements["income_statement"]
+    assert _row_with(income, -5430580843).value_for(2024) == -5592491287
+    cash_flow = statements["cash_flow"]
+    employees = _row_with(cash_flow, -1047532373)
+    assert employees.value_for(2024) == -899579380
+    investing = _row_with(cash_flow, -1686223847)
+    assert investing is not None
