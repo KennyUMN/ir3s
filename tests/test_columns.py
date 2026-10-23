@@ -275,3 +275,14 @@ def test_a_short_figure_beside_the_notes_column_is_a_figure():
     held = next(row for row in balance.rows if "held for sale" in row.label and row.value_for(2023) == 230)
     assert held.value_for(2024) == 61
     assert held.notes == "9"
+
+
+def test_the_parent_entity_statements_at_the_back_are_not_the_consolidated_ones():
+    """PBSA 2024 appends "(ENTITAS INDUK SAJA)" statements from page 117.
+
+    They carry a Notes column too, so they were read as more pages of the
+    consolidated statements and their lines were mixed in.
+    """
+    statements = _statements(AUDIT / "prda" / "pbsa_fs_2024.pdf")
+    for statement in statements.values():
+        assert max(row.page for row in statement.rows) < 100

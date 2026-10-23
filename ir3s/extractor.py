@@ -40,6 +40,8 @@ _NOTES_TITLE = re.compile(
     r"|notes\s+to\s+the(\s+consolidated)?(\s+financial\s+statements)?)\s*$",
     re.I,
 )
+# The supplementary statements of the parent entity on its own.
+_PARENT_ONLY = re.compile(r"entitas\s+induk\s+saja|parent\s+entity\s+only", re.I)
 
 # Zones on a statement page, measured on the BCA reports.
 LABEL_MAX_X = 340.0
@@ -788,7 +790,7 @@ def _header_kind(page: pymupdf.Page) -> str | None:
         for line in block.get("lines", [])
         if line["bbox"][1] < HEADER_BAND_Y
     ]
-    if any(_NOTES_TITLE.match(text) for text in lines):
+    if any(_NOTES_TITLE.match(text) or _PARENT_ONLY.search(text) for text in lines):
         # A notes page can carry a note title in the band ("34. Cash Flow
         # Additional Information"), and it is not the statement.
         return None
