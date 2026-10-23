@@ -147,7 +147,7 @@ def write_values(
     force: bool = False,
     label_for_row: dict[int, str] | None = None,
     merged_for_row: dict[int, list[str]] | None = None,
-    clear_rows: tuple[tuple[int, int], ...] | None = None,
+    clear_rows: tuple[tuple[int, int, frozenset[int]], ...] | None = None,
 ) -> WriteReport:
     """Write figures into the historical columns of a template sheet.
 
@@ -158,10 +158,12 @@ def write_values(
     template row. A row that took more than one account gets a comment saying
     which, so a reader can see what went in without reading the spec.
 
-    `clear_rows` is the range of template rows the statement owns. Their
-    historical cells are emptied first, so a row the statement does not
-    print cannot keep the number of whichever company filled the template
-    last. A cell holding a formula is left alone: the template computes it.
+    `clear_rows` is the range of template rows the statement owns, and the
+    years the statement was read for. Those cells are emptied first, so a
+    row the statement does not print cannot keep the number of whichever
+    company filled the template last. The other years are left alone: they
+    belong to another report, so a model can be filled one report at a time.
+    A cell holding a formula is left alone too: the template computes it.
     """
     sheet = template.sheet(sheet_name)
     historical = template.historical_columns(sheet, header_row)
@@ -169,9 +171,12 @@ def write_values(
     report = WriteReport()
 
     if clear_rows:
-        for first, last in clear_rows:
+        for first, last, years in clear_rows:
             for row_number in range(first, last + 1):
-                for column in historical.values():
+                for year in years:
+                    column = historical.get(year)
+                    if column is None:
+                        continue
                     cell = sheet.cell(row=row_number, column=column)
                     if isinstance(cell.value, str) and cell.value.startswith("="):
                         if _CELL_REF.search(cell.value):

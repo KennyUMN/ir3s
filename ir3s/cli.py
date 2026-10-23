@@ -40,6 +40,11 @@ def cmd_slice(args: argparse.Namespace) -> int:
     return 0
 
 
+def _column_name(cell) -> str:
+    """A full-year column is its year; an interim one is marked, "2025 interim"."""
+    return f"{cell.year} interim" if cell.interim else str(cell.year)
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
     statements = extract_statements(args.pdf, STATEMENT_NAMES)
     if args.json:
@@ -51,7 +56,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
                 "rows": [
                     {
                         "label": row.label,
-                        "values": {str(c.year): str(c.value) for c in row.cells},
+                        "values": {_column_name(c): str(c.value) for c in row.cells},
                     }
                     for row in statement.rows
                 ],
@@ -63,7 +68,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
     for kind, statement in statements.items():
         print(f"=== {kind} ({statement.company}, {statement.unit}) years {statement.years}")
         for row in statement.rows:
-            values = "  ".join(f"{c.year}={c.value:,}" for c in row.cells)
+            values = "  ".join(f"{_column_name(c)}={c.value:,}" for c in row.cells)
             print(f"  {values:46} | {row.label}")
     return 0
 

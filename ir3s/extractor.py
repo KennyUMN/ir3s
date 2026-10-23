@@ -34,6 +34,13 @@ _TITLE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("equity", re.compile(r"laporan\s+perubahan\s+ekuitas", re.I)),
 )
 
+# The running title of a notes page, which names itself as the notes.
+_NOTES_TITLE = re.compile(
+    r"^\s*(catatan\s+atas\s+laporan\s+keuangan(\s+konsolidasian)?"
+    r"|notes\s+to\s+the(\s+consolidated)?(\s+financial\s+statements)?)\s*$",
+    re.I,
+)
+
 # Zones on a statement page, measured on the BCA reports.
 LABEL_MAX_X = 340.0
 VALUE_MIN_X = 420.0
@@ -63,11 +70,17 @@ class ExtractionError(Exception):
 
 @dataclass(frozen=True)
 class Cell:
-    """One figure, already bound to a year."""
+    """One figure, bound to the column it was printed in.
+
+    `interim` marks a column that does not cover a full financial year: a
+    six- or nine-month period, or a balance at a date that is not the year
+    end. Such a figure is kept, but it is not the year's figure.
+    """
 
     year: int
     value: Decimal
     raw: str
+    interim: bool = False
 
 
 @dataclass
@@ -87,7 +100,7 @@ class Row:
 
     def value_for(self, year: int) -> Decimal | None:
         for cell in self.cells:
-            if cell.year == year:
+            if cell.year == year and not cell.interim:
                 return cell.value
         return None
 
@@ -195,7 +208,7 @@ def parse_year(token: str) -> int | None:
     parenthesis that hides the asterisk from a plain rstrip.
     """
     text = token.strip()
-    if not re.fullmatch(r"(19|20)\d{2}\s*\*?\)?|\*?\)?", text):
+    if not re.fullmatch(r"(19|20)\d{2}\s*\*?\)?", text):
         return None
     return int(text[:4])
 
@@ -230,19 +243,19 @@ def mark_subtotals(rows: list[Row]) -> list[Row]:
     run. A row that does not match is a primitive and does.
     """
     section = None
-    runs: dict[int, list[Decimal]] = {}
+    runs: dict[tuple[int, bool], list[Decimal]] = {}
     for row in rows:
         if row.section != section:
             section = row.section
             runs = {}
         for cell in row.cells:
-            year = cell.year
-            run = runs.setdefault(year, [])
+            column = (cell.year, cell.interim)
+            run = runs.setdefault(column, [])
             if run and cell.value == sum(run, Decimal(0)):
                 row.is_subtotal = True
                 # A subtotal is a component of the next subtotal, not a new
                 # primitive, so the run keeps only the subtotal's own value.
-                runs[year] = [cell.value]
+                runs[column] = [cell.value]
             else:
                 run.append(cell.value)
     return rows
@@ -290,50 +303,108 @@ def _column_clusters(lines: list[list[tuple]], header_index: int) -> list[tuple[
     return [(sum(w[2] for w in words) / len(words), words) for words in clusters]
 
 
-def _figure_bands(
-    lines: list[list[tuple]], header_index: int, years: list[int]
-) -> list[tuple[float, list[tuple]]]:
-    """The bands that hold the figures, one per year, in header order.
+@dataclass(frozen=True)
+class Column:
+    """A column of figures and the period its header names."""
 
-    A statement prints a notes column between the two years, and that column
-    holds numbers too, so the bands are paired with the header years by
-    position rather than by count. A band that is not near a year token is
-    the notes column, or a stray digit, and is dropped.
+    centre: float
+    words: tuple
+    year: int
+    interim: bool
+
+
+# Words in a column's header that say it does not cover a full year.
+_INTERIM_WORDS = re.compile(
+    r"^(juni|june|september|maret|march|bulan|months?|enam|sembilan|tiga|"
+    r"six-month|nine-month|three-month|periode|periode-periode|periods?)\W*$",
+    re.I,
+)
+_YEAR_END_WORDS = re.compile(r"^(desember|december|tahun|tahun-tahun|years?)\W*$", re.I)
+_OPENING_WORDS = re.compile(r"^(januari|january)\W*$", re.I)
+_DECEMBER = re.compile(r"^(desember|december)\W*$", re.I)
+# How far a header word may sit outside its column's figures and still name it.
+HEADER_SLACK_PT = 20.0
+# A header names the columns in the lines just above the figures; the
+# statement's own title and unit line sit above that.
+HEADER_LINES = 10
+
+
+def _header_window(lines: list[list[tuple]], header_index: int) -> list[list[tuple]]:
+    """The header lines over the figure columns, below the title and unit."""
+    start = max(0, header_index - HEADER_LINES)
+    for index in range(header_index, start - 1, -1):
+        text = " ".join(word[4] for word in lines[index]).lower()
+        if "rupiah" in text or "unless" in text or "kecuali" in text:
+            start = index + 1
+            break
+    return lines[start : header_index + 1]
+
+
+def _figure_columns(lines: list[list[tuple]], header_index: int) -> list[Column]:
+    """The figure columns, each named by the header printed above it.
+
+    A column's year is the year token nearest above its figures, so the order
+    the columns are printed in does not matter, a header split over several
+    lines is read as one, and a notes column, which has no year over it, is
+    dropped. Two columns can name the same year (nine months of 2024 and the
+    full year 2024), so the header words over each column decide its period.
     """
-    if not years:
-        return []
-    year_positions = []
-    for index in range(max(0, header_index - 3), min(header_index + 1, len(lines))):
-        for word in lines[index]:
+    window = _header_window(lines, header_index)
+    # (centre, depth, year, the year follows "December" on its line)
+    years: list[tuple[float, float, int, bool]] = []
+    for depth, line in enumerate(window):
+        for index, word in enumerate(line):
             year = parse_year(word[4].strip())
             if year is not None:
-                year_positions.append((word[0], word[2], year))
-    if not year_positions:
+                after_december = index > 0 and bool(_DECEMBER.match(line[index - 1][4].strip()))
+                years.append(((word[0] + word[2]) / 2, depth, year, after_december))
+    if not years:
         return []
-    centres = {year: (left + right) / 2 for left, right, year in year_positions}
 
-    bands = _column_clusters(lines, header_index)
-    # A column's figures do not always right-align to the same place: a wide
-    # number can sit further left than a narrow one. The bands that belong to
-    # the same year are merged, and the merged band is centred on where its
-    # figures actually are, which is what the figures are read against.
-    merged: dict[int, list[tuple]] = {}
-    for centre, words in bands:
-        nearest = min(centres.items(), key=lambda item: abs(item[1] - centre))
-        year, year_centre = nearest
-        if abs(year_centre - centre) > BAND_TOLERANCE_PT:
-            # Not near a year header: a notes column, or a stray number.
+    grouped: dict[tuple[float, int, bool], list[tuple]] = {}
+    for _, words in _column_clusters(lines, header_index):
+        low = min(word[0] for word in words) - HEADER_SLACK_PT
+        high = max(word[2] for word in words) + HEADER_SLACK_PT
+        over = [item for item in years if low <= item[0] <= high]
+        if not over:
+            # No year over it: the notes column, or a stray number.
             continue
-        merged.setdefault(year, []).extend(words)
+        centre, _, year, after_december = max(over, key=lambda item: item[1])
+        grouped.setdefault((centre, year, after_december), []).extend(words)
 
-    result = []
-    for year in years:
-        words = merged.get(year)
-        if not words:
-            continue
-        centre = sum(word[2] for word in words) / len(words)
-        result.append((centre, words))
-    return result
+    anchors = sorted(grouped)
+    header_words: dict[tuple[float, int, bool], list[str]] = {anchor: [] for anchor in anchors}
+    if anchors:
+        left_edge = min(min(w[0] for w in words) for words in grouped.values())
+        right_edge = max(max(w[2] for w in words) for words in grouped.values())
+        for line in window:
+            for word in line:
+                middle = (word[0] + word[2]) / 2
+                if not left_edge - HEADER_SLACK_PT <= middle <= right_edge + HEADER_SLACK_PT:
+                    continue
+                nearest = min(anchors, key=lambda anchor: abs(anchor[0] - middle))
+                header_words[nearest].append(word[4].strip())
+
+    columns = []
+    for anchor in anchors:
+        # A bilingual header prints "Juni/June" as one token.
+        words = [part for word in header_words[anchor] for part in word.split("/")]
+        interim = sum(bool(_INTERIM_WORDS.match(w)) for w in words)
+        year_end = sum(bool(_YEAR_END_WORDS.match(w)) for w in words)
+        year = anchor[1]
+        if any(_OPENING_WORDS.match(w) for w in words) and not anchor[2]:
+            # "1 January 2018" is the balance at 31 December 2017. A header
+            # that prints both dates, "1 January 2024/31 December 2023",
+            # already names the year end.
+            year -= 1
+        figures = grouped[anchor]
+        columns.append(Column(
+            centre=sum(word[2] for word in figures) / len(figures),
+            words=tuple(figures),
+            year=year,
+            interim=interim > year_end,
+        ))
+    return columns
 
 
 def _is_indented_under(first_x: float, parent_x: float) -> bool:
@@ -508,15 +579,21 @@ def read_page(
     """
     lines = _cluster_lines(page.get_text("words"))
 
-    header_index, years, notes_x = _find_year_header(lines)
+    header_index, _, notes_x = _find_year_header(lines)
     if header_index < 0:
         return [], []
 
-    clusters = _figure_bands(lines, header_index, years)
+    columns = _figure_columns(lines, header_index)
+    clusters = [(column.centre, list(column.words)) for column in columns]
+    years = sorted({column.year for column in columns if not column.interim})
 
     bold_y = _bold_lines(page)
     rows: list[Row] = []
     pending: list[str] = []
+    pending_x = 0.0
+    # A wrapped name whose note reference has already printed is a complete
+    # account name, so the figure line after it is one of its members.
+    pending_noted = False
     parent = ""
     section = ""
     for position, line in enumerate(lines[header_index + 1 :]):
@@ -568,22 +645,35 @@ def read_page(
                     # continues the wrap it started: a label can run over
                     # several lines before its figure arrives.
                     pending.append(label)
+                    pending_noted = pending_noted or bool(note_parts)
                 elif not indented:
                     # A section heading: it names the section, it is not part
                     # of the next line's label.
                     section = label
                     pending = []
+                    pending_noted = False
                     parent = ""
                     parent_x = 0.0
                 elif note_reference:
                     # An account whose members follow on the next lines.
                     parent = " ".join(pending + [label]).strip()
-                    parent_x = word_first_x
+                    parent_x = pending_x if pending else word_first_x
                     pending = []
+                    pending_noted = False
                 else:
                     # A label that wrapped around its own figure.
+                    if not pending:
+                        pending_x = word_first_x
                     pending.append(label)
+                    pending_noted = pending_noted or bool(note_parts)
             continue
+
+        if pending and pending_noted and label:
+            # The wrapped name is a group, and this line is its first member.
+            parent = " ".join(pending).strip()
+            parent_x = pending_x
+            pending = []
+        pending_noted = False
 
         # A member of a group carries the group's name, so the model can
         # tell a related-party receivable from any other line. A member is
@@ -609,7 +699,8 @@ def read_page(
             value = parse_number(figure[4])
             if value is None:
                 continue
-            cells.append(Cell(years[best_index], value, figure[4]))
+            column = columns[best_index]
+            cells.append(Cell(column.year, value, figure[4], column.interim))
 
         rows.append(
             Row(
@@ -631,14 +722,20 @@ def _header_kind(page: pymupdf.Page) -> str | None:
     A statement page names itself at the top, above the figures. Titles quoted
     in the notes sit lower down, so only the top band is considered.
     """
-    for block in page.get_text("dict")["blocks"]:
-        for line in block.get("lines", []):
-            if line["bbox"][1] >= HEADER_BAND_Y:
-                continue
-            text = " ".join(span["text"] for span in line.get("spans", []))
-            for kind, pattern in _TITLE_PATTERNS:
-                if pattern.search(text):
-                    return kind
+    lines = [
+        " ".join(span["text"] for span in line.get("spans", []))
+        for block in page.get_text("dict")["blocks"]
+        for line in block.get("lines", [])
+        if line["bbox"][1] < HEADER_BAND_Y
+    ]
+    if any(_NOTES_TITLE.match(text) for text in lines):
+        # A notes page can carry a note title in the band ("34. Cash Flow
+        # Additional Information"), and it is not the statement.
+        return None
+    for text in lines:
+        for kind, pattern in _TITLE_PATTERNS:
+            if pattern.search(text):
+                return kind
     return None
 
 
@@ -766,10 +863,12 @@ def _detect_unit(text: str) -> str:
         return "millions of Rupiah"
     if "billions" in lowered or "miliar rupiah" in lowered or "milyar" in lowered:
         return "billions"
-    if "thousands" in lowered or "ribu rupiah" in lowered:
+    if re.search(r"\bthousands?\b|\bribu(an)?\b", lowered):
         return "thousands"
     if "millions" in lowered:
         return "millions"
+    if "dolar amerika" in lowered or "united states dollar" in lowered or "us dollar" in lowered:
+        return "US dollars"
     if "rupiah" in lowered:
         # Full rupiah, as opposed to a stated multiple of it.
         return "Rupiah"

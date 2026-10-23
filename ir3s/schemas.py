@@ -122,7 +122,13 @@ UNIT_SCALE: dict[str, Decimal] = {
     "millions": Decimal(1_000_000),
     "millions of Rupiah": Decimal(1_000_000),
     "billions": Decimal(1_000_000_000),
+    "US dollars": Decimal(1),
 }
+
+
+def currency(unit: str) -> str:
+    """The currency a unit counts in. Every unit but a dollar one is rupiah."""
+    return "USD" if "dollar" in unit.lower() else "IDR"
 
 
 def unit_scale(unit: str) -> Decimal:
@@ -148,6 +154,13 @@ class ModelSpec(BaseModel):
         spec's own unit unless it says otherwise.
         """
         target = self.target_unit or self.unit
+        if currency(source_unit) != currency(target):
+            # A scale cannot turn dollars into rupiah, and writing them as if
+            # it could puts a dollar figure in a rupiah column.
+            raise ValueError(
+                f"the statement is in {source_unit} and the template in {target}; "
+                "the currency has to be converted first"
+            )
         return unit_scale(source_unit) / unit_scale(target)
     # v1 does not populate drivers; the field is accepted so specs can carry it.
     sections: dict[str, SpecSection] = Field(default_factory=dict)

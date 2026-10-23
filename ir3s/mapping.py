@@ -119,7 +119,7 @@ def map_statement(
     assigns, like any other.
     """
     canon = [CanonicalLabel.from_spec(c) for c in labels]
-    years = years or sorted({c.year for r in rows for c in r.cells})
+    years = years or sorted({c.year for r in rows for c in r.cells if not c.interim})
     reply = (ask or llm.chat_json)(build_prompt(rows, canon, years, feedback))
     assign = _parse_assignment(reply, rows, canon)
 

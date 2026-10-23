@@ -318,10 +318,11 @@ def test_a_full_rupiah_statement_is_divided_down_to_a_millions_template():
 def test_a_statement_with_four_year_columns_is_read():
     """A report may carry more than two comparative years.
 
-    Superbank's 2025 report has four: 2025, 2024, 2023 and 2022. A column's
-    figures do not all right-align to the same place, so a column can split
-    into two bands, and the reader used to keep only the larger one and lose
-    the rest.
+    Superbank's June 2025 report has four: 30 June 2025, and 31 December
+    2024, 2023 and 2022. A column's figures do not all right-align to the
+    same place, so a column can split into two bands, and the reader used to
+    keep only the larger one and lose the rest. The June column is an
+    interim balance, not the 2025 year end.
     """
     from ir3s.extractor import extract_statements
 
@@ -329,14 +330,11 @@ def test_a_statement_with_four_year_columns_is_read():
     if not pdf.exists():
         pytest.skip("Superbank fixture not present")
     balance = extract_statements(str(pdf))["balance_sheet"]
-    assert balance.years == [2022, 2023, 2024, 2025], balance.years
+    assert balance.years == [2022, 2023, 2024], balance.years
+    total = next(row for row in balance.rows if "TOTAL ASSETS" in row.label.upper())
     for year in balance.years:
-        total = next(
-            (row.value_for(year) for row in balance.rows
-             if "TOTAL ASSETS" in row.label.upper()),
-            None,
-        )
-        assert total is not None, f"{year}: total assets was not read"
+        assert total.value_for(year) is not None, f"{year}: total assets was not read"
+    assert any(cell.year == 2025 and cell.interim for cell in total.cells)
 
 
 def test_reader_handles_a_figure_layout_with_a_notes_column():
@@ -498,7 +496,7 @@ def test_a_row_the_statement_does_not_print_is_emptied():
             template, "3 Statements", 5,
             {36: {2023: Decimal(100)}},
             force=True, label_for_row={36: "row 36"},
-            clear_rows=((6, 67),),
+            clear_rows=((6, 67, frozenset({2023})),),
         )
         template.workbook.save(copy)
         sheet = openpyxl.load_workbook(copy)["3 Statements"]

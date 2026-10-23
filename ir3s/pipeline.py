@@ -126,6 +126,15 @@ def fill_template(
         )
         return result
 
+    # A statement reported in a different unit from the template's columns is
+    # divided down here, so a full-rupiah report fills a millions column. The
+    # model's unit is the one the statement was printed in.
+    try:
+        scale = spec.scale_to_target(model.unit)
+    except ValueError as error:
+        result.messages.append(f"{error}; nothing was written")
+        return result
+
     template = open_template(template_path)
     target = output_path or template_path
     if output_path and not dry_run:
@@ -140,10 +149,14 @@ def fill_template(
     # Each statement block has its own year-header row, so the columns are
     # resolved per statement rather than once for the sheet.
     header_row = spec.header_rows.get("balance_sheet", 2)
-    # A statement reported in a different unit from the template's columns is
-    # divided down here, so a full-rupiah report fills a millions column. The
-    # model's unit is the one the statement was printed in.
-    scale = spec.scale_to_target(model.unit)
+    # The years each statement was read for. A year the report does not print
+    # for a statement (a six-month income statement, a comparative the reader
+    # could not place) is left alone, not written as zero over what another
+    # report filled.
+    read_years = {
+        kind: frozenset(year for values in getattr(model, kind).values() for year in values)
+        for kind in STATEMENTS
+    }
     for kind in STATEMENTS:
         # The spec's lines, not the model's: a line the statement does not
         # print has to be written as zero, or the row keeps the number of
@@ -160,7 +173,7 @@ def fill_template(
                 continue
             values = getattr(model, kind).get(spec_line.label, {})
             bucket = rows.setdefault(spec_line.template_row, {})
-            for year in model.years:
+            for year in sorted(read_years[kind]):
                 value = values.get(year, Decimal(0))
                 bucket[year] = bucket.get(year, Decimal(0)) + value * scale
             labels_by_row.setdefault(spec_line.template_row, spec_line.label)
@@ -171,7 +184,7 @@ def fill_template(
     report = write_values(
         template, sheet_name, header_row, rows, force=force,
         label_for_row=labels_by_row, merged_for_row=merged_for_row,
-        clear_rows=tuple(r for kind in STATEMENTS
+        clear_rows=tuple((*r, read_years[kind]) for kind in STATEMENTS
                          if (r := spec.row_ranges.get(kind)) is not None),
     )
     result.write_report = report
