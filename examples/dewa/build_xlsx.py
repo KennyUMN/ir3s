@@ -208,5 +208,5 @@ NOTES = [
 build(
     company="PT Darma Henwa Tbk dan Entitas Anak", ticker="DEWA.IJ", pdf=PDF, reports=REPORTS,
     years=YEARS, statements=STATEMENTS, checks=CHECKS, sections=SECTIONS, notes=NOTES, out=OUT,
-    unit="thousands", unit_label="Ribu IDR", min_figure=50, junk=JUNK,
+    unit="thousands", unit_label="Ribu IDR", min_figure=50, junk=JUNK, cash_tie=("ca.cash", "end"),
 )

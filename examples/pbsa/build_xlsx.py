@@ -21,7 +21,7 @@ PDF_DIR = os.environ.get("PBSA_PDF_DIR", os.path.expanduser("~/.hermes/cache/scr
 PDF = os.path.join(PDF_DIR, "pbsa_fs_{}.pdf")
 OUT = sys.argv[1] if len(sys.argv) > 1 else str(HERE / "PBSA_2019_2025.xlsx")
 YEARS = [2019, 2020, 2021, 2022, 2023, 2024, 2025]
-REPORTS = [2025, 2024, 2023, 2022, 2021, 2020]  # newest first: a restated figure wins
+REPORTS = [2025, 2024, 2023, 2022, 2021, 2020, 2019]  # newest first: a restated figure wins
 
 BS = [
     ("ca.cash", "Kas dan setara kas / Cash and cash equivalents", 0, "ca", r"Kas dan setara kas"),
@@ -236,5 +236,5 @@ NOTES = [
 build(
     company="PT Paramita Bangun Sarana Tbk dan Entitas Anak", ticker="PBSA.IJ", pdf=PDF, reports=REPORTS,
     years=YEARS, statements=STATEMENTS, checks=CHECKS, sections=SECTIONS, notes=NOTES, out=OUT,
-    unit="Rupiah", unit_label="Rupiah", min_figure=1000, width=19,
+    unit="Rupiah", unit_label="Rupiah", min_figure=1000, width=19, cash_tie=("ca.cash", "end"),
 )
