@@ -214,12 +214,14 @@ def parse_year(token: str) -> int | None:
 
 
 _SPLIT_FIGURE = re.compile(r"^\d{1,3}([.,]\d{3})+([.,]\d+)?\)?$")
+# A negative whose ")" was printed apart: "(1.650.665" then ")".
+_OPEN_FIGURE = re.compile(r"^\(\d{1,3}([.,]\d{3})+([.,]\d+)?$")
 # How far a lone "(" may sit left of its figure and still be its sign.
 PAREN_GAP_PT = 40.0
 
 
 def _join_parentheses(line: list[tuple]) -> list[tuple]:
-    """Put a negative figure printed as "(  1.234 )" back together.
+    """Put a negative figure printed as "(  1.234 )" or "(1.234 )" back together.
 
     Some statements space the parentheses away from the digits, so the "("
     and ")" come out as words of their own and the figure reads as positive.
@@ -243,6 +245,15 @@ def _join_parentheses(line: list[tuple]) -> list[tuple]:
                     index += 1
                 text += ")"
             joined.append((*following[:4], text, *following[5:]))
+            continue
+        if (
+            _OPEN_FIGURE.match(word[4].strip())
+            and following is not None
+            and following[4].strip() == ")"
+            and following[0] - word[2] <= PAREN_GAP_PT
+        ):
+            joined.append((*word[:4], word[4].strip() + ")", *word[5:]))
+            index += 2
             continue
         joined.append(word)
         index += 1
@@ -453,9 +464,22 @@ def _is_indented_under(first_x: float, parent_x: float) -> bool:
     return parent_x and first_x > parent_x + 2.0
 
 
-def _in_notes_column(word: tuple, notes_x: float | None) -> bool:
-    """True when a word sits in the notes reference column."""
-    return notes_x is not None and abs(word[0] - notes_x) < NOTES_COLUMN_PT
+def _in_notes_column(
+    word: tuple, notes_x: float | None, bands: list[tuple[float, list[tuple]]]
+) -> bool:
+    """True when a word sits in the notes reference column.
+
+    A short figure right-aligned in the first column ("61") starts close to
+    the notes token too. It is a figure when its right edge sits nearer a
+    figure column than its left edge sits to the notes token.
+    """
+    if notes_x is None or abs(word[0] - notes_x) >= NOTES_COLUMN_PT:
+        return False
+    if not any(ch.isdigit() for ch in word[4]):
+        # A lone dash here is as likely the page number's "- 1 -" as a nil.
+        return True
+    to_band = min((abs(word[2] - centre) for centre, _ in bands), default=float("inf"))
+    return to_band > abs(word[0] - notes_x)
 
 
 def _is_label_position(
@@ -640,7 +664,7 @@ def read_page(
         for word in line:
             text = word[4].strip()
             if _is_numeric(text) and _in_any_band(word, clusters):
-                if _in_notes_column(word, notes_x):
+                if _in_notes_column(word, notes_x, clusters):
                     # A note reference, not a figure: it is a number, and it
                     # sits close enough to the first figure column to fall
                     # inside its band.

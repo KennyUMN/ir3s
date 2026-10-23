@@ -250,3 +250,28 @@ def test_a_negative_printed_with_spaced_parentheses_is_negative():
     assert employees.value_for(2024) == -899579380
     investing = _row_with(cash_flow, -1686223847)
     assert investing is not None
+
+
+def test_a_negative_whose_closing_parenthesis_is_a_word_of_its_own_is_kept():
+    """CASS 2024 prints the 2023 column as "(1.650.665" then ")" apart.
+
+    The figure did not read as a number, so the 2023 operating expenses,
+    other operating expenses and income tax were dropped.
+    """
+    income = _statements(AUDIT / "cass" / "cass_fs_2024.pdf", ("income_statement",))["income_statement"]
+    assert _row_with(income, -1947427).value_for(2023) == -1650665
+    assert _row_with(income, -203130).value_for(2023) == -93101
+    assert _row_with(income, -188955).value_for(2023) == -135919
+    assert ")" not in _row_with(income, -1947427).label
+
+
+def test_a_short_figure_beside_the_notes_column_is_a_figure():
+    """CASS 2024 prints "61" for assets held for sale, right-aligned in 2024.
+
+    Its left edge falls near the "Notes" header, so it was read as a note
+    reference and the current assets no longer added up to their total.
+    """
+    balance = _statements(AUDIT / "cass" / "cass_fs_2024.pdf", ("balance_sheet",))["balance_sheet"]
+    held = next(row for row in balance.rows if "held for sale" in row.label and row.value_for(2023) == 230)
+    assert held.value_for(2024) == 61
+    assert held.notes == "9"
