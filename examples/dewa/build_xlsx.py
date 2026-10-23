@@ -12,7 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 HERE = Path(__file__).resolve().parent
@@ -236,51 +236,107 @@ for short, total, parts in CHECKS:
 for f in failures:
     print("CHECK FAILED", f)
 
+# Styled after the CASS model (CASS_FINMOD.xlsx): DM Sans, navy bands,
+# labels in column B, years from column C, no gridlines.
+NAVY = "393E5C"
+FONT = "DM Sans"
+BAND = PatternFill("solid", fgColor=NAVY)
+LIGHT = PatternFill("solid", fgColor="E6E8EF")
+GREEN = PatternFill("solid", fgColor="00FF00")
+TOP = Border(top=Side(style="thin", color=NAVY))
+FIRST = 3  # column of the first year
+LAST = FIRST + len(YEARS) - 1
+# A header row goes above the first line of each group: (text, is_band).
+SECTIONS = {
+    "ca": [("ASET / ASSETS", True), ("Aset lancar / Current assets", False)],
+    "nca": [("Aset tidak lancar / Non-current assets", False)],
+    "cl": [("LIABILITAS DAN EKUITAS / LIABILITIES AND EQUITY", True),
+           ("Liabilitas jangka pendek / Current liabilities", False)],
+    "ncl": [("Liabilitas jangka panjang / Non-current liabilities", False)],
+    "eq": [("Ekuitas / Equity", False)],
+    "np": [("Laba diatribusikan kepada / Profit attributable to", False)],
+    "ci": [("Laba komprehensif diatribusikan kepada / Comprehensive income attributable to", False)],
+    "op": [("Arus kas dari aktivitas operasi / Cash flows from operating activities", True)],
+    "inv": [("Arus kas dari aktivitas investasi / Cash flows from investing activities", True)],
+    "fin": [("Arus kas dari aktivitas pendanaan / Cash flows from financing activities", True)],
+}
+
+
+def style_row(sh, row, font, fill=None, border=None):
+    for c in range(1, LAST + 1):
+        cell = sh.cell(row=row, column=c)
+        cell.font = font
+        if fill:
+            cell.fill = fill
+        if border:
+            cell.border = border
+
+
+def band(sh, row, label, years=(), size=10):
+    sh.cell(row=row, column=2, value=label)
+    for c, year in enumerate(years, FIRST):
+        sh.cell(row=row, column=c, value=year).alignment = Alignment(horizontal="right")
+    style_row(sh, row, Font(name=FONT, size=size, bold=True, color="FFFFFF"), BAND)
+
+
 wb = Workbook()
 wb.remove(wb.active)
 for short, kind, title, rules, _, _ in STATEMENTS:
     sh = wb.create_sheet(title)
-    sh.append(["PT Darma Henwa Tbk dan Entitas Anak (DEWA)"])
-    sh.append([f"{title} konsolidasian, dalam ribuan Rupiah"] + YEARS)
-    sh.append(["Sumber (laporan keuangan tahun)"] + [f"LK {sources[(short, y)]}" for y in YEARS])
-    sh["A1"].font = Font(bold=True, size=13)
-    for cell in sh[2]:
-        cell.font = Font(bold=True)
-    for cell in sh[3]:
-        cell.font = Font(italic=True, color="666666")
-    first = sh.max_row + 1
-    rows_at = {}
-    seen = set()
+    sh.sheet_view.showGridLines = False
+    band(sh, 1, "PT Darma Henwa Tbk dan Entitas Anak")
+    band(sh, 2, "DEWA.IJ", YEARS)
+    band(sh, 3, title.upper(), size=31)
+    band(sh, 5, f"{title.upper()} KONSOLIDASIAN (Ribu IDR)", YEARS)
+    sh.cell(row=6, column=2, value="Sumber (laporan keuangan tahun)")
+    for c, y in enumerate(YEARS, FIRST):
+        sh.cell(row=6, column=c, value=f"LK {sources[(short, y)]}").alignment = Alignment(horizontal="right")
+    style_row(sh, 6, Font(name=FONT, size=9, italic=True, color="7F7F7F"))
+    row = 7
+    rows_at, seen, headed = {}, set(), set()
     for key, label, is_total, _, _ in rules:
         values = [data[(short, y)].get(key) for y in YEARS]
         if key.startswith("_") or key in seen or all(v is None for v in values):
             continue
         seen.add(key)
-        sh.append([label] + values)
-        rows_at[key] = sh.max_row
-        if is_total:
-            for cell in sh[sh.max_row]:
-                cell.font = Font(bold=True)
-        if key == "eps":
-            for c in range(2, 2 + len(YEARS)):
-                sh.cell(row=sh.max_row, column=c).number_format = "#,##0.00"
+        group = key.split(".")[0] if "." in key else None
+        if group in SECTIONS and group not in headed:
+            headed.add(group)
+            for text, is_band in SECTIONS[group]:
+                if is_band:
+                    band(sh, row, text)
+                else:
+                    sh.cell(row=row, column=2, value=text)
+                    style_row(sh, row, Font(name=FONT, size=10, bold=True))
+                row += 1
+        sh.cell(row=row, column=2, value=label)
+        for c, v in enumerate(values, FIRST):
+            cell = sh.cell(row=row, column=c, value=v)
+            cell.number_format = "#,##0.00" if key == "eps" else NUMBER
+            cell.alignment = Alignment(horizontal="right")
+        if is_total and label.split("/")[0].isupper():
+            style_row(sh, row, Font(name=FONT, size=10, bold=True, color="FFFFFF"), BAND)
+        elif is_total:
+            style_row(sh, row, Font(name=FONT, size=10, bold=True), LIGHT, TOP)
+        else:
+            style_row(sh, row, Font(name=FONT, size=10))
+        rows_at[key] = row
+        row += 1
     if short == "bs":
-        sh.append([])
-        sh.append(["Cek: jumlah aset - jumlah liabilitas dan ekuitas (harus 0)"] + [
-            f"={get_column_letter(c)}{rows_at['assets.total']}-{get_column_letter(c)}{rows_at['le.total']}"
-            for c in range(2, 2 + len(YEARS))])
-        for cell in sh[sh.max_row]:
-            cell.font = Font(bold=True, color="C00000")
-    for r in range(first, sh.max_row + 1):
-        for c in range(2, 2 + len(YEARS)):
-            cell = sh.cell(row=r, column=c)
-            if cell.number_format == "General":
-                cell.number_format = NUMBER
-    sh.column_dimensions["A"].width = 78
-    for c in range(2, 2 + len(YEARS)):
-        sh.column_dimensions[get_column_letter(c)].width = 17
-        sh.cell(row=2, column=c).fill = PatternFill("solid", fgColor="DDEBF7")
-    sh.freeze_panes = sh.cell(row=first, column=2)
+        row += 1
+        sh.cell(row=row, column=2, value="Check...... (aset - liabilitas dan ekuitas, harus 0)")
+        for c in range(FIRST, LAST + 1):
+            col = get_column_letter(c)
+            cell = sh.cell(row=row, column=c, value=f"={col}{rows_at['assets.total']}-{col}{rows_at['le.total']}")
+            cell.number_format = NUMBER
+            cell.alignment = Alignment(horizontal="right")
+        style_row(sh, row, Font(name=FONT, size=10, bold=True), GREEN)
+    sh.column_dimensions["A"].width = 5.7
+    sh.column_dimensions["B"].width = 72
+    for c in range(FIRST, LAST + 1):
+        sh.column_dimensions[get_column_letter(c)].width = 16
+    sh.row_dimensions[3].height = 40
+    sh.freeze_panes = sh.cell(row=7, column=FIRST)
 
 notes = wb.create_sheet("Catatan")
 for line in [
@@ -296,6 +352,9 @@ for line in [
     f"  subtotal dicek sama dengan jumlah pos-posnya: {applied - len(failures)} cek lolos, {len(failures)} gagal.",
 ]:
     notes.append([line])
+for cell in notes["A"]:
+    cell.font = Font(name=FONT, size=10)
+notes.sheet_view.showGridLines = False
 notes.column_dimensions["A"].width = 120
 wb.save(OUT)
 print("saved", OUT, "| checks applied:", applied, "failed:", len(failures))
