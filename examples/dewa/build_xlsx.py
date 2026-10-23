@@ -8,16 +8,11 @@ sum of its lines, or the script stops.
 import os
 import re
 import sys
-from decimal import Decimal
 from pathlib import Path
 
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
-
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parents[1]))
-from ir3s.extractor import extract_statements  # noqa: E402
+sys.path.insert(0, str(HERE.parent))
+from statements_xlsx import build  # noqa: E402
 
 # The December reports from www.ptdh.co.id/investor/financial-statement,
 # saved as dewa_fs_<year>.pdf.
@@ -26,7 +21,6 @@ PDF = os.path.join(PDF_DIR, "dewa_fs_{}.pdf")
 OUT = sys.argv[1] if len(sys.argv) > 1 else str(HERE / "DEWA_2022_2025.xlsx")
 YEARS = [2022, 2023, 2024, 2025]
 REPORTS = [2025, 2024, 2023]  # newest first: a restated figure wins
-NUMBER = '#,##0;(#,##0);"-"'
 # Page footers and note references that land in a figure column.
 JUNK = re.compile(r"tidak terpisahkan|Lihat Catatan|\(Pindahan\)|secara financial statements", re.I)
 
@@ -117,7 +111,7 @@ IS = [
     ("ci.total", "Jumlah laba komprehensif diatribusikan / Total", 1, "ci", r"^Jumlah Total"),
     ("eps", "Laba (rugi) per saham dasar, per 1.000 saham (Rupiah penuh) / Basic EPS per 1,000 shares", 0, "ci", r"PER SAHAM"),
 ]
-IS_NEXT = {"np.parent": "np", "np.total": "ci_head", "ci.parent": "ci"}
+IS_NEXT = {"np.parent": "np", "np.total": "pl", "ci.parent": "ci"}
 
 CF = [
     ("op.cust", "Penerimaan dari pelanggan / Receipts from customers", 0, "op", r"Penerimaan dari pelanggan"),
@@ -186,66 +180,6 @@ STATEMENTS = [
     ("cf", "cash_flow", "Arus Kas", CF, CF_NEXT, "op"),
 ]
 
-read = {y: extract_statements(PDF.format(y), [s[1] for s in STATEMENTS]) for y in REPORTS}
-for y, found in read.items():
-    for _, kind, *_ in STATEMENTS:
-        assert found[kind].unit == "thousands", (y, kind, found[kind].unit)
-
-
-def classify(rows, rules, transitions, start, year):
-    """Map one report's printed lines onto the standard lines for one year."""
-    part, out, unmatched = start, {}, []
-    for row in rows:
-        value = row.value_for(year)
-        if value is None or JUNK.search(row.label):
-            continue
-        if 0 < abs(value) < 50 and not re.match(r"LABA (\(RUGI\) )?PER SAHAM", row.label, re.I):
-            # A note reference or page number read as a figure.
-            continue
-        key = next((k for k, _, _, p, pat in rules
-                    if p == part and k not in out and re.search(pat, row.label, re.I)), None)
-        if key is None:
-            unmatched.append((part, row.label[:90], value))
-            continue
-        out[key] = value
-        part = transitions.get(key, part)
-        if part == "ci_head":
-            part = "pl"
-    return out, unmatched
-
-
-data, sources = {}, {}
-for short, kind, _, rules, transitions, start in STATEMENTS:
-    for year in YEARS:
-        report = next(r for r in REPORTS if year in read[r][kind].years)
-        sources[(short, year)] = report
-        values, unmatched = classify(read[report][kind].rows, rules, transitions, start, year)
-        assert not unmatched, (short, year, report, unmatched)
-        data[(short, year)] = values
-
-failures, applied = [], 0
-for short, total, parts in CHECKS:
-    for year in YEARS:
-        values = data[(short, year)]
-        if total not in values:
-            continue
-        applied += 1
-        diff = values[total] - sum((values.get(p, Decimal(0)) for p in parts), Decimal(0))
-        if diff:
-            failures.append((short, year, total, parts, diff))
-for f in failures:
-    print("CHECK FAILED", f)
-
-# Styled after the CASS model (CASS_FINMOD.xlsx): DM Sans, navy bands,
-# labels in column B, years from column C, no gridlines.
-NAVY = "393E5C"
-FONT = "DM Sans"
-BAND = PatternFill("solid", fgColor=NAVY)
-LIGHT = PatternFill("solid", fgColor="E6E8EF")
-GREEN = PatternFill("solid", fgColor="00FF00")
-TOP = Border(top=Side(style="thin", color=NAVY))
-FIRST = 3  # column of the first year
-LAST = FIRST + len(YEARS) - 1
 # A header row goes above the first line of each group: (text, is_band).
 SECTIONS = {
     "ca": [("ASET / ASSETS", True), ("Aset lancar / Current assets", False)],
@@ -260,86 +194,7 @@ SECTIONS = {
     "inv": [("Arus kas dari aktivitas investasi / Cash flows from investing activities", True)],
     "fin": [("Arus kas dari aktivitas pendanaan / Cash flows from financing activities", True)],
 }
-
-
-def style_row(sh, row, font, fill=None, border=None):
-    for c in range(1, LAST + 1):
-        cell = sh.cell(row=row, column=c)
-        cell.font = font
-        if fill:
-            cell.fill = fill
-        if border:
-            cell.border = border
-
-
-def band(sh, row, label, years=(), size=10):
-    sh.cell(row=row, column=2, value=label)
-    for c, year in enumerate(years, FIRST):
-        sh.cell(row=row, column=c, value=year).alignment = Alignment(horizontal="right")
-    style_row(sh, row, Font(name=FONT, size=size, bold=True, color="FFFFFF"), BAND)
-
-
-wb = Workbook()
-wb.remove(wb.active)
-for short, kind, title, rules, _, _ in STATEMENTS:
-    sh = wb.create_sheet(title)
-    sh.sheet_view.showGridLines = False
-    band(sh, 1, "PT Darma Henwa Tbk dan Entitas Anak")
-    band(sh, 2, "DEWA.IJ", YEARS)
-    band(sh, 3, title.upper(), size=31)
-    band(sh, 5, f"{title.upper()} KONSOLIDASIAN (Ribu IDR)", YEARS)
-    sh.cell(row=6, column=2, value="Sumber (laporan keuangan tahun)")
-    for c, y in enumerate(YEARS, FIRST):
-        sh.cell(row=6, column=c, value=f"LK {sources[(short, y)]}").alignment = Alignment(horizontal="right")
-    style_row(sh, 6, Font(name=FONT, size=9, italic=True, color="7F7F7F"))
-    row = 7
-    rows_at, seen, headed = {}, set(), set()
-    for key, label, is_total, _, _ in rules:
-        values = [data[(short, y)].get(key) for y in YEARS]
-        if key.startswith("_") or key in seen or all(v is None for v in values):
-            continue
-        seen.add(key)
-        group = key.split(".")[0] if "." in key else None
-        if group in SECTIONS and group not in headed:
-            headed.add(group)
-            for text, is_band in SECTIONS[group]:
-                if is_band:
-                    band(sh, row, text)
-                else:
-                    sh.cell(row=row, column=2, value=text)
-                    style_row(sh, row, Font(name=FONT, size=10, bold=True))
-                row += 1
-        sh.cell(row=row, column=2, value=label)
-        for c, v in enumerate(values, FIRST):
-            cell = sh.cell(row=row, column=c, value=v)
-            cell.number_format = "#,##0.00" if key == "eps" else NUMBER
-            cell.alignment = Alignment(horizontal="right")
-        if is_total and label.split("/")[0].isupper():
-            style_row(sh, row, Font(name=FONT, size=10, bold=True, color="FFFFFF"), BAND)
-        elif is_total:
-            style_row(sh, row, Font(name=FONT, size=10, bold=True), LIGHT, TOP)
-        else:
-            style_row(sh, row, Font(name=FONT, size=10))
-        rows_at[key] = row
-        row += 1
-    if short == "bs":
-        row += 1
-        sh.cell(row=row, column=2, value="Check...... (aset - liabilitas dan ekuitas, harus 0)")
-        for c in range(FIRST, LAST + 1):
-            col = get_column_letter(c)
-            cell = sh.cell(row=row, column=c, value=f"={col}{rows_at['assets.total']}-{col}{rows_at['le.total']}")
-            cell.number_format = NUMBER
-            cell.alignment = Alignment(horizontal="right")
-        style_row(sh, row, Font(name=FONT, size=10, bold=True), GREEN)
-    sh.column_dimensions["A"].width = 5.7
-    sh.column_dimensions["B"].width = 72
-    for c in range(FIRST, LAST + 1):
-        sh.column_dimensions[get_column_letter(c)].width = 16
-    sh.row_dimensions[3].height = 40
-    sh.freeze_panes = sh.cell(row=7, column=FIRST)
-
-notes = wb.create_sheet("Catatan")
-for line in [
+NOTES = [
     "Sumber: laporan keuangan konsolidasian auditan 31 Desember, www.ptdh.co.id/investor/financial-statement.",
     "Tiap tahun diambil dari laporan terbaru yang memuatnya, jadi angka yang disajikan kembali menggantikan angka aslinya.",
     "  Neraca 2023, 2024, 2025 dan laba rugi / arus kas 2024, 2025: LK 2025 (disajikan kembali, Catatan 3).",
@@ -348,13 +203,10 @@ for line in [
     "Laporan 2023 dan 2024 mencetak subtotal 'Laba usaha' dan 'Jumlah beban lain-lain'; laporan 2025 tidak, jadi",
     "  keduanya tidak ditampilkan. Laba sebelum pajak = laba bruto + semua pos di bawahnya, di setiap tahun.",
     "Laporan 2025 mencetak subtotal 'Arus kas dari operasi - bersih' yang tidak ada di laporan lama; tidak ditampilkan.",
-    "Angka dibaca langsung dari teks PDF oleh ir3s. Setiap baris tercetak sudah dipetakan ke satu pos, dan setiap",
-    f"  subtotal dicek sama dengan jumlah pos-posnya: {applied - len(failures)} cek lolos, {len(failures)} gagal.",
-]:
-    notes.append([line])
-for cell in notes["A"]:
-    cell.font = Font(name=FONT, size=10)
-notes.sheet_view.showGridLines = False
-notes.column_dimensions["A"].width = 120
-wb.save(OUT)
-print("saved", OUT, "| checks applied:", applied, "failed:", len(failures))
+]
+
+build(
+    company="PT Darma Henwa Tbk dan Entitas Anak", ticker="DEWA.IJ", pdf=PDF, reports=REPORTS,
+    years=YEARS, statements=STATEMENTS, checks=CHECKS, sections=SECTIONS, notes=NOTES, out=OUT,
+    unit="thousands", unit_label="Ribu IDR", min_figure=50, junk=JUNK,
+)
